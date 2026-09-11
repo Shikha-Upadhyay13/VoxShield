@@ -1,0 +1,17 @@
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+.venv/
+venv/
+__pycache__/
+node_modules/
+.next/
+dist/
+*.wav
+*.mp3
+*.pt
+*.pth
+*.onnx
+demo/audio/
