@@ -1,6 +1,7 @@
 "use client";
 
 import { actionLabel, bandLabel, clsx, formatClock, formatDuration, modeLabel, sourceLabel } from "@/lib/format";
+import { PageIntro } from "@/components/atmosphere";
 import { LayerBars } from "@/components/layer-bars";
 import { useSession } from "@/store/session-provider";
 
@@ -10,14 +11,16 @@ export default function IncidentsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <p className="max-w-xl text-sm text-[var(--muted)]">
-          Feature-only history. Scores, reasons, and actions — not recordings.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageIntro
+          kicker="Audit trail"
+          title="What happened, not what was said."
+          body="Feature-only history. Scores, reasons, and actions — never the recording."
+        />
         <button
           type="button"
           onClick={clearIncidents}
-          className="text-xs text-[var(--faint)] hover:text-[var(--text)]"
+          className="mt-2 text-xs text-[var(--faint)] hover:text-[var(--text)]"
         >
           Clear local history
         </button>

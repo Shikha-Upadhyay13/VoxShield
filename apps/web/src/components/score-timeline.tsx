@@ -35,7 +35,7 @@ export function ScoreTimeline({ points }: { points: ScorePoint[] }) {
         stroke="rgba(240,113,103,0.18)"
         strokeDasharray="3 5"
       />
-      <path d={path} fill="none" stroke="#7ee0c7" strokeWidth="2" strokeLinejoin="round" />
+      <path d={path} fill="none" stroke="#7ce8cc" strokeWidth="2.2" strokeLinejoin="round" />
     </svg>
   );
 }

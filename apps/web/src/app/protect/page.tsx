@@ -32,19 +32,23 @@ export default function ProtectPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <section className="card overflow-hidden p-6 sm:p-8">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--faint)]">
+      <section className="card panel-glow relative overflow-hidden p-7 sm:p-10">
+        <div
+          className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full"
+          style={{ background: "radial-gradient(circle, rgba(124,232,204,0.16), transparent 70%)" }}
+        />
+        <div className="kicker">
           For families · last check {lastResult ? lastLabel : "none yet"}
         </div>
-        <h2 className="font-serif mt-3 max-w-3xl text-3xl leading-tight sm:text-4xl">{copy.headline}</h2>
+        <h2 className="font-serif mt-4 max-w-3xl text-4xl leading-[1.15] sm:text-5xl">{copy.headline}</h2>
         <p className="mt-3 text-sm text-[var(--accent)]">{copy.hindi}</p>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--muted)]">{copy.body}</p>
         {!lastResult ? (
           <div className="mt-6 flex gap-3">
-            <Link href="/monitor" className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#06201a]">
+            <Link href="/monitor" className="btn-primary">
               Run a live check
             </Link>
-            <Link href="/analyze" className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-sm">
+            <Link href="/analyze" className="btn-ghost">
               Upload a clip
             </Link>
           </div>
@@ -57,9 +61,9 @@ export default function ProtectPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         {STEPS.map((step, i) => (
-          <div key={step.title} className="card p-5">
-            <div className="mb-4 font-mono text-[11px] text-[var(--faint)]">0{i + 1}</div>
-            <div className="text-sm font-medium">{step.title}</div>
+          <div key={step.title} className="card p-6">
+            <div className="mb-5 font-mono text-xs text-[var(--accent)]">0{i + 1}</div>
+            <div className="font-serif text-2xl">{step.title}</div>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{step.body}</p>
           </div>
         ))}

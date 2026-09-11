@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertBanner } from "@/components/alert-banner";
+import { PageIntro } from "@/components/atmosphere";
 import { LayerBars } from "@/components/layer-bars";
 import { RiskRing } from "@/components/risk-ring";
 import { ScoreTimeline } from "@/components/score-timeline";
@@ -77,10 +78,15 @@ export default function MonitorPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      <PageIntro
+        kicker="Live integrity"
+        title="Listen, then decide."
+        body="Point a phone playing a clone at the laptop mic — or speak. The score updates while the voice is still in the room."
+      />
       <AlertBanner band={result.band} />
 
       <div className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
-        <section className="card p-5 sm:p-6">
+        <section className="card frame p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm font-medium">Live stream</div>
@@ -93,17 +99,16 @@ export default function MonitorPage() {
               onClick={toggle}
               disabled={busy}
               className={clsx(
-                "rounded-full px-4 py-2 text-sm font-medium",
-                session.active
-                  ? "bg-[var(--high)] text-[#2a0b09]"
-                  : "bg-[var(--accent)] text-[#06201a]",
+                session.active ? "btn-ghost !border-[rgba(255,122,112,0.4)] !text-[var(--high)]" : "btn-primary",
+                "!py-2",
               )}
             >
               {session.active ? "Stop session" : busy ? "Requesting mic…" : "Start microphone"}
             </button>
           </div>
 
-          <div className="rounded-xl border border-[var(--line)] bg-black/25 p-3">
+          <div className="relative overflow-hidden rounded-2xl border border-[var(--line)] bg-black/35 p-3">
+            <div className="scanline" />
             <Waveform analyser={live.analyser} idle={!session.active} />
             <div className="mt-3">
               <SpectrogramBars analyser={live.analyser} idle={!session.active} />
@@ -155,8 +160,8 @@ export default function MonitorPage() {
           </div>
         </section>
 
-        <aside className="card flex flex-col items-center p-6">
-          <RiskRing score={result.score} band={result.band} />
+        <aside className="card panel-glow flex flex-col items-center p-6">
+          <RiskRing score={result.score} band={result.band} size={220} />
           <div className="mt-6 w-full">
             <LayerBars layers={result.layers} />
           </div>

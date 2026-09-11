@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { AlertBanner } from "@/components/alert-banner";
+import { PageIntro } from "@/components/atmosphere";
 import { LayerBars } from "@/components/layer-bars";
 import { RiskRing } from "@/components/risk-ring";
 import { WhyScore } from "@/components/why-score";
@@ -55,6 +56,11 @@ export default function AnalyzePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      <PageIntro
+        kicker="File path"
+        title="Prove it on a clip."
+        body="Upload a recording, or run the two reference signals. This is the judge safety net when the hall is loud."
+      />
       <div className="grid gap-5 lg:grid-cols-2">
         <section
           onDragOver={(e) => {
@@ -69,19 +75,18 @@ export default function AnalyzePage() {
             if (file) void onFile(file);
           }}
           className={clsx(
-            "card flex min-h-[280px] flex-col items-center justify-center p-8 text-center",
+            "card frame flex min-h-[300px] flex-col items-center justify-center p-8 text-center",
             drag && "border-[var(--accent)]",
           )}
         >
-          <div className="text-sm font-medium">Upload a voice clip</div>
-          <p className="mt-2 max-w-sm text-sm text-[var(--muted)]">
-            WAV, MP3, or M4A. Same engine as the live monitor. Audio is processed in the browser and
-            not stored.
+          <div className="font-serif text-2xl">Upload a voice clip</div>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted)]">
+            WAV, MP3, or M4A. Same engine as the live monitor. Processed in the browser — not stored.
           </p>
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="mt-6 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#06201a]"
+            className="btn-primary mt-6"
           >
             Choose file
           </button>
@@ -104,10 +109,10 @@ export default function AnalyzePage() {
           <button
             type="button"
             onClick={() => void runDemo("human")}
-            className="card p-5 text-left transition hover:bg-[var(--bg-hover)]"
+            className="card p-6 text-left transition hover:-translate-y-0.5 hover:bg-[var(--bg-hover)]"
           >
-            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">Demo signal A</div>
-            <div className="mt-2 text-sm font-medium">Human-like reference</div>
+            <div className="kicker">Demo signal A</div>
+            <div className="mt-3 font-serif text-2xl">Human-like</div>
             <p className="mt-1 text-sm text-[var(--muted)]">
               Irregular pitch, pauses, and breath noise — a stand-in until the teammate recording is
               enrolled.
@@ -116,10 +121,10 @@ export default function AnalyzePage() {
           <button
             type="button"
             onClick={() => void runDemo("clone")}
-            className="card p-5 text-left transition hover:bg-[var(--bg-hover)]"
+            className="card p-6 text-left transition hover:-translate-y-0.5 hover:bg-[var(--bg-hover)]"
           >
-            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">Demo signal B</div>
-            <div className="mt-2 text-sm font-medium">Clone-like reference</div>
+            <div className="kicker">Demo signal B</div>
+            <div className="mt-3 font-serif text-2xl">Clone-like</div>
             <p className="mt-1 text-sm text-[var(--muted)]">
               Flat fundamental, harmonic stack, and a vocoder-style high-frequency cutoff.
             </p>
@@ -131,7 +136,7 @@ export default function AnalyzePage() {
         <>
           <AlertBanner band={lastResult.band} />
           <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-            <div className="card flex flex-col items-center p-6">
+            <div className="card panel-glow flex flex-col items-center p-6">
               <RiskRing score={lastResult.score} band={lastResult.band} />
               <p className="mt-3 text-center text-xs text-[var(--faint)]">{lastLabel}</p>
               {audioUrl ? (
@@ -144,16 +149,10 @@ export default function AnalyzePage() {
               </div>
               <WhyScore result={lastResult} />
               <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/protect"
-                  className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#06201a]"
-                >
+                <Link href="/protect" className="btn-primary">
                   Open Protect playbook
                 </Link>
-                <Link
-                  href="/operations"
-                  className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-sm"
-                >
+                <Link href="/operations" className="btn-ghost">
                   Open Operations
                 </Link>
               </div>

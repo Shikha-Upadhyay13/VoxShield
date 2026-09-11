@@ -6,6 +6,7 @@ import { actionLabel, clsx, formatDuration, inr } from "@/lib/format";
 import { THRESHOLDS } from "@/lib/types";
 import type { OperationsAction } from "@/lib/types";
 import { AlertBanner } from "@/components/alert-banner";
+import { PageIntro } from "@/components/atmosphere";
 import { LayerBars } from "@/components/layer-bars";
 import { RiskRing } from "@/components/risk-ring";
 import { useSession } from "@/store/session-provider";
@@ -31,12 +32,17 @@ export default function OperationsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      <PageIntro
+        kicker="Analyst console"
+        title="Hold the transfer."
+        body="Same score as Protect, dressed for a bank desk: caller metadata, thresholds, and an action that leaves a trail."
+      />
       {result ? <AlertBanner band={result.band} /> : null}
 
-      <section className="card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <section className="card panel-glow flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">Active call</div>
-          <div className="mt-1 text-lg font-medium">{SAMPLE_CALLER.kycName}</div>
+          <div className="kicker">Active call</div>
+          <div className="font-serif mt-2 text-2xl">{SAMPLE_CALLER.kycName}</div>
           <div className="mt-1 font-mono text-xs text-[var(--muted)]">
             CLI {SAMPLE_CALLER.cli} · {lastLabel}
           </div>

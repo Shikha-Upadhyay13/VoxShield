@@ -9,12 +9,12 @@ import {
   LayoutDashboard,
   Menu,
   Shield,
-  ShieldAlert,
   Upload,
   X,
 } from "lucide-react";
 import { clsx } from "@/lib/format";
 import { useSession } from "@/store/session-provider";
+import { BrandMark } from "./brand-mark";
 import { ModeSwitch } from "./mode-switch";
 
 const NAV = [
@@ -38,25 +38,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
+      <div className="grain" />
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-[var(--line)] bg-[var(--bg-elev)]/95 backdrop-blur-xl transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-[272px] flex-col border-r border-[var(--line)] bg-[var(--bg-elev)]/90 backdrop-blur-2xl transition-transform lg:static lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex items-center justify-between px-5 py-5">
-          <Link href="/" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--accent-dim)] text-[var(--accent)]">
-              <ShieldAlert size={16} />
-            </span>
+        <div className="px-5 py-6">
+          <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
+            <BrandMark size={36} />
             <span>
-              <span className="block text-sm font-medium tracking-tight">VoxShield</span>
-              <span className="block text-[10px] uppercase tracking-[0.18em] text-[var(--faint)]">
+              <span className="block text-[15px] font-medium tracking-tight">VoxShield</span>
+              <span className="block text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">
                 Voice integrity
               </span>
             </span>
           </Link>
-          <button type="button" className="lg:hidden text-[var(--muted)]" onClick={() => setOpen(false)}>
+          <button type="button" className="absolute right-4 top-6 lg:hidden text-[var(--muted)]" onClick={() => setOpen(false)}>
             <X size={18} />
           </button>
         </div>
@@ -71,26 +70,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={clsx(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition",
+                  "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition",
                   active
-                    ? "bg-white/6 text-[var(--text)]"
+                    ? "bg-white/6 text-[var(--text)] shadow-[inset_3px_0_0_var(--accent)]"
                     : "text-[var(--muted)] hover:bg-white/4 hover:text-[var(--text)]",
                 )}
               >
-                <Icon size={16} />
+                <Icon size={16} className={active ? "text-[var(--accent)]" : ""} />
                 {item.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="space-y-4 border-t border-[var(--line)] p-4">
-          <div>
-            <div className="mb-2 text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">Mode</div>
-            <ModeSwitch mode={mode} onChange={setMode} />
-          </div>
-          <p className="text-[11px] leading-relaxed text-[var(--faint)]">
-            Feature-only logging. Raw audio is not retained by default.
+        <div className="m-3 rounded-2xl border border-[var(--line)] bg-black/20 p-4">
+          <div className="mb-2 text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">Mode</div>
+          <ModeSwitch mode={mode} onChange={setMode} />
+          <p className="mt-3 text-[11px] leading-relaxed text-[var(--faint)]">
+            Feature-only logging. Raw audio is not retained.
           </p>
         </div>
       </aside>
@@ -99,17 +96,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <button
           type="button"
           aria-label="Close menu"
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/55 lg:hidden"
           onClick={() => setOpen(false)}
         />
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--line)] bg-[var(--bg)]/80 px-4 py-3 backdrop-blur-xl sm:px-6">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-64"
+          style={{ background: "radial-gradient(600px 180px at 80% 0%, rgba(124,232,204,0.07), transparent)" }}
+        />
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--line)] bg-[var(--bg)]/70 px-4 py-3.5 backdrop-blur-2xl sm:px-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="rounded-lg border border-[var(--line)] p-2 text-[var(--muted)] lg:hidden"
+              className="rounded-xl border border-[var(--line)] p-2 text-[var(--muted)] lg:hidden"
               onClick={() => setOpen(true)}
             >
               <Menu size={16} />
@@ -128,7 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={clsx(
                 "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]",
                 live
-                  ? "border-[rgba(240,113,103,0.3)] text-[var(--high)]"
+                  ? "border-[rgba(255,122,112,0.35)] bg-band-high text-[var(--high)]"
                   : "border-[var(--line)] text-[var(--muted)]",
               )}
             >
@@ -142,7 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ) : null}
           </div>
         </header>
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="relative flex-1 px-4 py-7 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );
