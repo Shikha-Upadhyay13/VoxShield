@@ -26,11 +26,16 @@ Open [http://localhost:3000](http://localhost:3000).
 | Route | What you see |
 |---|---|
 | `/` | Landing |
+| `/console` | Command center |
 | `/monitor` | Live mic, waveform, risk ring |
-| `/analyze` | Upload + human/clone demo signals |
-| `/protect` | Family playbooks + trusted contacts |
+| `/analyze` | Upload + demo signals |
+| `/compare` | Human-like vs clone-like bench |
+| `/protect` | Family playbooks + red flags |
 | `/operations` | Analyst console, hold/MFA, API snippet |
 | `/incidents` | Feature-only history |
+| `/scenarios` | Family / CFO / official stories |
+| `/enroll` | Feature-only voiceprint |
+| `/guide` | How scoring works |
 
 ## Stack (locked)
 

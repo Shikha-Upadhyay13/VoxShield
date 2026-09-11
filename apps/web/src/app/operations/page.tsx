@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { SAMPLE_CALLER } from "@/lib/demo-data";
 import { actionLabel, clsx, formatDuration, inr } from "@/lib/format";
 import { THRESHOLDS } from "@/lib/types";
 import type { OperationsAction } from "@/lib/types";
@@ -14,7 +13,7 @@ import { useSession } from "@/store/session-provider";
 const ACTIONS: OperationsAction[] = ["hold", "mfa", "escalate", "allow"];
 
 export default function OperationsPage() {
-  const { lastResult, lastLabel, preset, setPreset, recordAction, incidents } = useSession();
+  const { lastResult, lastLabel, preset, setPreset, recordAction, incidents, caller } = useSession();
   const [reason, setReason] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [channel, setChannel] = useState<"sms" | "email">("sms");
@@ -42,15 +41,15 @@ export default function OperationsPage() {
       <section className="card panel-glow flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="kicker">Active call</div>
-          <div className="font-serif mt-2 text-2xl">{SAMPLE_CALLER.kycName}</div>
+          <div className="font-serif mt-2 text-2xl">{caller.kycName}</div>
           <div className="mt-1 font-mono text-xs text-[var(--muted)]">
-            CLI {SAMPLE_CALLER.cli} · {lastLabel}
+            CLI {caller.cli} · {lastLabel}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="rounded-full bg-band-high px-3 py-1 text-xs band-high">CLI does not match KYC</span>
-          <span className="text-[var(--muted)]">{inr(SAMPLE_CALLER.amountInr)}</span>
-          <span className="text-[var(--faint)]">{SAMPLE_CALLER.transactionType}</span>
+          <span className="text-[var(--muted)]">{inr(caller.amountInr)}</span>
+          <span className="text-[var(--faint)]">{caller.transactionType}</span>
         </div>
       </section>
 
@@ -154,8 +153,8 @@ export default function OperationsPage() {
           </div>
           <pre className="whitespace-pre-wrap font-mono text-xs leading-6 text-[var(--muted)]">
             {channel === "sms"
-              ? `VoxShield: Voice risk ${result?.score ?? "—"} (${result?.band ?? "n/a"}) on ${SAMPLE_CALLER.cli}. Do not approve ${inr(SAMPLE_CALLER.amountInr)} until callback + MFA.`
-              : `To: fraud-ops@bank.example\nSubject: Hold — possible voice clone on high-value NEFT\n\nScore ${result?.score ?? "—"} / ${result?.band ?? "n/a"}\nCLI ${SAMPLE_CALLER.cli} does not match enrolled contact.\nDuration ${result ? formatDuration(result.windowMs) : "—"}\nRetention: features only`}
+              ? `VoxShield: Voice risk ${result?.score ?? "—"} (${result?.band ?? "n/a"}) on ${caller.cli}. Do not approve ${inr(caller.amountInr)} until callback + MFA.`
+              : `To: fraud-ops@bank.example\nSubject: Hold — possible voice clone on high-value NEFT\n\nScore ${result?.score ?? "—"} / ${result?.band ?? "n/a"}\nCLI ${caller.cli} does not match enrolled contact.\nDuration ${result ? formatDuration(result.windowMs) : "—"}\nRetention: features only`}
           </pre>
         </div>
 

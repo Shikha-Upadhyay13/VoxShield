@@ -66,6 +66,25 @@ export interface LiveSession {
   insufficient: boolean;
 }
 
+export interface Enrollment {
+  name: string;
+  relation: string;
+  enrolledAt: string;
+  features: { pitch: number; centroid: number; flatness: number };
+}
+
+export interface Scenario {
+  id: string;
+  title: string;
+  victim: string;
+  line: string;
+  mode: Mode;
+  preset: ThresholdPreset;
+  context: ContextFlags;
+  caller: CallerContext;
+  result: AnalysisResult;
+}
+
 export interface Thresholds {
   review: number;
   high: number;

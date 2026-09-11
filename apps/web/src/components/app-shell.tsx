@@ -5,7 +5,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   Activity,
+  BookOpen,
+  Fingerprint,
   FolderOpen,
+  GitCompare,
+  Home,
+  Info,
   LayoutDashboard,
   Menu,
   Shield,
@@ -17,13 +22,38 @@ import { useSession } from "@/store/session-provider";
 import { BrandMark } from "./brand-mark";
 import { ModeSwitch } from "./mode-switch";
 
-const NAV = [
-  { href: "/monitor", label: "Live Monitor", icon: Activity },
-  { href: "/analyze", label: "Analyze", icon: Upload },
-  { href: "/protect", label: "Protect", icon: Shield },
-  { href: "/operations", label: "Operations", icon: LayoutDashboard },
-  { href: "/incidents", label: "Incidents", icon: FolderOpen },
+const NAV_GROUPS = [
+  {
+    label: "Overview",
+    items: [{ href: "/console", label: "Console", icon: Home }],
+  },
+  {
+    label: "Detect",
+    items: [
+      { href: "/monitor", label: "Live Monitor", icon: Activity },
+      { href: "/analyze", label: "Analyze", icon: Upload },
+      { href: "/compare", label: "Compare", icon: GitCompare },
+    ],
+  },
+  {
+    label: "Respond",
+    items: [
+      { href: "/protect", label: "Protect", icon: Shield },
+      { href: "/operations", label: "Operations", icon: LayoutDashboard },
+      { href: "/incidents", label: "Incidents", icon: FolderOpen },
+    ],
+  },
+  {
+    label: "Library",
+    items: [
+      { href: "/scenarios", label: "Scenarios", icon: BookOpen },
+      { href: "/enroll", label: "Voiceprint", icon: Fingerprint },
+      { href: "/guide", label: "How it works", icon: Info },
+    ],
+  },
 ];
+
+const FLAT = NAV_GROUPS.flatMap((g) => g.items);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -60,27 +90,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
-          {NAV.map((item) => {
-            const active = pathname === item.href;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={clsx(
-                  "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition",
-                  active
-                    ? "bg-white/6 text-[var(--text)] shadow-[inset_3px_0_0_var(--accent)]"
-                    : "text-[var(--muted)] hover:bg-white/4 hover:text-[var(--text)]",
-                )}
-              >
-                <Icon size={16} className={active ? "text-[var(--accent)]" : ""} />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-3">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div className="mb-1.5 px-3 text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+                {group.label}
+              </div>
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const active = pathname === item.href;
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setOpen(false)}
+                      className={clsx(
+                        "flex items-center gap-3 rounded-2xl px-3 py-2 text-sm transition",
+                        active
+                          ? "bg-white/6 text-[var(--text)] shadow-[inset_3px_0_0_var(--accent)]"
+                          : "text-[var(--muted)] hover:bg-white/4 hover:text-[var(--text)]",
+                      )}
+                    >
+                      <Icon size={16} className={active ? "text-[var(--accent)]" : ""} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="m-3 rounded-2xl border border-[var(--line)] bg-black/20 p-4">
@@ -117,7 +156,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             <div>
               <div className="text-sm font-medium">
-                {NAV.find((n) => n.href === pathname)?.label ?? "VoxShield"}
+                {FLAT.find((n) => n.href === pathname)?.label ?? "VoxShield"}
               </div>
               <div className="text-[11px] text-[var(--faint)]">
                 SIH26104 · {mode === "protect" ? "Family protection" : "Bank / enterprise ops"}

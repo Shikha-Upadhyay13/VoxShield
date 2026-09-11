@@ -7,11 +7,13 @@ import {
   useEffect,
   useState,
 } from "react";
-import { SAMPLE_INCIDENTS } from "@/lib/demo-data";
+import { SAMPLE_INCIDENTS, SCENARIOS } from "@/lib/demo-data";
 import { reband } from "@/lib/scoring";
 import type {
   AnalysisResult,
+  CallerContext,
   ContextFlags,
+  Enrollment,
   Incident,
   LiveSession,
   Mode,
@@ -28,6 +30,8 @@ interface Persisted {
   preset: ThresholdPreset;
   incidents: Incident[];
   context: ContextFlags;
+  enrollment: Enrollment | null;
+  scenarioId: string | null;
 }
 
 interface SessionContextValue {
@@ -50,6 +54,11 @@ interface SessionContextValue {
   stopSession: () => void;
   recordAction: (action: OperationsAction, reason?: string) => void;
   clearIncidents: () => void;
+  enrollment: Enrollment | null;
+  setEnrollment: (enrollment: Enrollment | null) => void;
+  scenarioId: string | null;
+  caller: CallerContext;
+  loadScenario: (id: string) => string;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -89,6 +98,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [lastSource, setLastSource] = useState<Source | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>(SAMPLE_INCIDENTS);
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(SAMPLE_INCIDENTS[0]?.id ?? null);
+  const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
+  const [scenarioId, setScenarioId] = useState<string | null>(null);
+  const [caller, setCaller] = useState<CallerContext>(SCENARIOS[1]?.caller ?? {
+    cli: "+91 90000 18442",
+    kycName: "Unknown caller",
+    cliMatchesContact: false,
+    transactionType: "Inquiry",
+    amountInr: 0,
+  });
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -100,14 +118,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setIncidents(persisted.incidents);
       setSelectedIncidentId(persisted.incidents[0]?.id ?? null);
     }
+    if (persisted.enrollment) setEnrollment(persisted.enrollment);
+    if (persisted.scenarioId) {
+      setScenarioId(persisted.scenarioId);
+      const found = SCENARIOS.find((s) => s.id === persisted.scenarioId);
+      if (found) setCaller(found.caller);
+    }
     setHydrated(true);
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-    const payload: Persisted = { mode, preset, incidents, context };
+    const payload: Persisted = { mode, preset, incidents, context, enrollment, scenarioId };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [hydrated, mode, preset, incidents, context]);
+  }, [hydrated, mode, preset, incidents, context, enrollment, scenarioId]);
 
   const setPreset = useCallback(
     (next: ThresholdPreset) => {
@@ -217,6 +241,32 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSelectedIncidentId(null);
   }, []);
 
+  const loadScenario = useCallback((id: string) => {
+    const scenario = SCENARIOS.find((s) => s.id === id);
+    if (!scenario) return "/scenarios";
+    setScenarioId(scenario.id);
+    setMode(scenario.mode);
+    setPresetState(scenario.preset);
+    setContextState(scenario.context);
+    setCaller(scenario.caller);
+    const banded = reband(scenario.result, scenario.preset);
+    setLastResult(banded);
+    setLastLabel(scenario.title);
+    setLastSource("demo");
+    const incident: Incident = {
+      id: `inc_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      mode: scenario.mode,
+      durationMs: 42000,
+      source: "demo",
+      label: scenario.title,
+      result: banded,
+    };
+    setIncidents((prev) => [incident, ...prev].slice(0, 40));
+    setSelectedIncidentId(incident.id);
+    return scenario.mode === "protect" ? "/protect" : "/operations";
+  }, []);
+
   const value: SessionContextValue = {
     mode,
     setMode,
@@ -237,6 +287,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     stopSession,
     recordAction,
     clearIncidents,
+    enrollment,
+    setEnrollment,
+    scenarioId,
+    caller,
+    loadScenario,
   };
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

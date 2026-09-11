@@ -53,9 +53,15 @@ export default function HomePage() {
             </span>
           </span>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <Link href="#how" className="hidden text-xs text-[var(--muted)] hover:text-[var(--text)] md:inline">
+            How it works
+          </Link>
+          <Link href="/scenarios" className="hidden text-xs text-[var(--muted)] hover:text-[var(--text)] md:inline">
+            Scenarios
+          </Link>
           <ModeSwitch mode={mode} onChange={setMode} />
-          <Link href="/monitor" className="btn-ghost hidden !px-3.5 !py-1.5 text-xs sm:inline-flex">
+          <Link href="/console" className="btn-ghost hidden !px-3.5 !py-1.5 text-xs sm:inline-flex">
             Open console
           </Link>
         </div>
@@ -121,6 +127,26 @@ export default function HomePage() {
           })}
         </div>
 
+        <div id="how" className="mt-16 scroll-mt-24">
+          <div className="kicker">The kill chain</div>
+          <h2 className="font-serif mt-2 text-3xl sm:text-4xl">Five steps. We interrupt at four.</h2>
+          <div className="mt-6 grid gap-3 md:grid-cols-5">
+            {[
+              ["Harvest", "A few seconds from WhatsApp or YouTube."],
+              ["Clone", "XTTS, OpenVoice, a paid API."],
+              ["Call", "Mobile, VoIP, or a meeting."],
+              ["Pressure", "Send money. Don’t tell anyone."],
+              ["We score", "Before the transfer clears."],
+            ].map(([t, b], i) => (
+              <div key={t} className="card p-5">
+                <div className="font-mono text-[11px] text-[var(--accent)]">0{i + 1}</div>
+                <div className="mt-3 text-sm font-medium">{t}</div>
+                <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{b}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-10 grid gap-4 lg:grid-cols-2">
           <div className="card p-7">
             <div className="kicker">Protect</div>
@@ -129,6 +155,9 @@ export default function HomePage() {
               Hang up. Call back on a saved number. Never UPI or OTP under pressure.
               Written so a parent can follow it in thirty seconds.
             </p>
+            <Link href="/protect" className="mt-5 inline-flex text-sm text-[var(--accent)]">
+              Open playbook
+            </Link>
           </div>
           <div className="card p-7">
             <div className="kicker">Operations</div>
@@ -137,8 +166,59 @@ export default function HomePage() {
               Hold the transfer, request MFA, escalate — with caller metadata and a
               documented API that looks like a platform, not a one-off site.
             </p>
+            <Link href="/operations" className="mt-5 inline-flex text-sm text-[var(--accent)]">
+              Open console
+            </Link>
           </div>
         </div>
+
+        <div className="mt-10 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="card overflow-hidden">
+            <div className="border-b border-[var(--line)] px-6 py-4">
+              <div className="kicker">What changes</div>
+              <h2 className="font-serif mt-2 text-2xl">Caller ID was never the speaker.</h2>
+            </div>
+            <table className="w-full text-left text-sm">
+              <tbody className="divide-y divide-[var(--line)]">
+                {[
+                  ["Caller ID / STIR", "Proves a number, not a throat"],
+                  ["“I know that voice”", "Exactly what clones are built to pass"],
+                  ["Manual callback", "Skipped under pressure"],
+                  ["VoxShield score", "A number + a verb, while still on the line"],
+                ].map(([l, r]) => (
+                  <tr key={l}>
+                    <td className="px-6 py-3.5 text-[var(--text)]">{l}</td>
+                    <td className="px-6 py-3.5 text-[var(--muted)]">{r}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="card p-7">
+            <div className="kicker">Ask us</div>
+            <div className="mt-4 space-y-5">
+              {[
+                ["Is the audio stored?", "No. Features and a score. That is the default."],
+                ["Does it work in Hindi?", "DSP is language-agnostic. Keywords start EN + HI."],
+                ["Can anyone clone a voice here?", "No. The cloner stays off-product, team-only."],
+              ].map(([q, a]) => (
+                <div key={q}>
+                  <div className="text-sm">{q}</div>
+                  <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{a}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <footer className="mt-16 flex flex-col gap-3 border-t border-[var(--line)] pt-8 text-xs text-[var(--faint)] sm:flex-row sm:justify-between">
+          <span>VoxShield · SIH26104 · AICTE Cyber Security Cell</span>
+          <span className="flex gap-4">
+            <Link href="/guide">How it works</Link>
+            <Link href="/console">Console</Link>
+            <Link href="/scenarios">Scenarios</Link>
+          </span>
+        </footer>
       </main>
     </div>
   );

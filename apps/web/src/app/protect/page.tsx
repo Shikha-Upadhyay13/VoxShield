@@ -69,6 +69,19 @@ export default function ProtectPage() {
         ))}
       </section>
 
+      <section className="grid gap-4 md:grid-cols-3">
+        {[
+          ["Red flag", "They forbid you from calling anyone else."],
+          ["Red flag", "The number is new. The voice is old."],
+          ["Red flag", "UPI / OTP / “abhi bhejo” in the first minute."],
+        ].map(([k, v]) => (
+          <div key={v} className="card p-5">
+            <div className="kicker band-high">{k}</div>
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{v}</p>
+          </div>
+        ))}
+      </section>
+
       <section className="card p-6">
         <div className="mb-4 flex items-center gap-2 text-sm font-medium">
           <ShieldCheck size={16} className="text-[var(--accent)]" />
