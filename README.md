@@ -9,29 +9,37 @@ VoxShield scores a live or uploaded voice for synthetic / cloned speech and tell
 
 ## Current phase
 
-**Phase 0 — Spec.** Product requirements are frozen in [PRD.md](./PRD.md). Application code starts in Phase 1.
+**Phase 1–2 UI + preview engine.** Full product surface is in `apps/web`. Detection uses an in-browser DSP + prosody fusion so the console is usable without Python. The FastAPI engine (Phase 3) will replace this preview scorer.
 
-Read the PRD before writing any feature. Phase 3 (real vs clone actually separates on our demo files) is the gate for UI polish.
+Product requirements: **[PRD.md](./PRD.md)**.
+
+## Run the UI
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+| Route | What you see |
+|---|---|
+| `/` | Landing |
+| `/monitor` | Live mic, waveform, risk ring |
+| `/analyze` | Upload + human/clone demo signals |
+| `/protect` | Family playbooks + trusted contacts |
+| `/operations` | Analyst console, hold/MFA, API snippet |
+| `/incidents` | Feature-only history |
 
 ## Stack (locked)
 
 | Layer | Choice |
 |---|---|
-| Web UI | Next.js (App Router) + TypeScript |
-| API | Python FastAPI |
+| Web UI | Next.js (App Router) + TypeScript + Tailwind |
+| Preview scoring | Client DSP (FFT + prosody + context flags) |
+| API | Python FastAPI — Phase 3 |
 | Capture | Browser mic (`getUserMedia`) + file upload |
-| Detection | Hybrid fusion: acoustic DSP + prosody + optional neural + context |
-
-## Repo
-
-```
-VoxShield/
-  PRD.md          ← source of truth
-  README.md
-  apps/web/       ← Phase 1
-  apps/api/       ← Phase 1
-  demo/           ← team-only real vs clone clips (no public cloner)
-```
 
 ## What we are not building in v1
 
@@ -39,12 +47,3 @@ VoxShield/
 - A from-scratch SOTA anti-spoof model
 - Blockchain (deferred to Phase 5)
 - Real core-banking or telecom-switch integration
-
-## Team demo
-
-1. Record a teammate (10–15 s, quiet room).
-2. Clone locally with Coqui XTTS-v2 or OpenVoice (free).
-3. Play the clone from a phone into the laptop mic — or upload the WAV if the hall is noisy.
-4. Show the risk score, the layer reasons, then Protect playbooks and Operations hold/escalate.
-
-Full script, API sketch, and phase exit criteria: **[PRD.md](./PRD.md)**.

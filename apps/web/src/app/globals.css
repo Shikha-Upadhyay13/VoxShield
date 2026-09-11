@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #07090d;
+  --bg-elev: #0d1118;
+  --bg-card: #121821;
+  --bg-hover: #181f2a;
+  --line: rgba(232, 237, 244, 0.08);
+  --line-strong: rgba(232, 237, 244, 0.14);
+  --text: #e8edf4;
+  --muted: #8b96a8;
+  --faint: #5c6678;
+  --accent: #7ee0c7;
+  --accent-dim: rgba(126, 224, 199, 0.12);
+  --genuine: #3dd68c;
+  --genuine-dim: rgba(61, 214, 140, 0.14);
+  --review: #e8b84a;
+  --review-dim: rgba(232, 184, 74, 0.14);
+  --high: #f07167;
+  --high-dim: rgba(240, 113, 103, 0.14);
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-newsreader);
+}
+
+* {
+  border-color: var(--line);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-geist-sans), Inter, system-ui, sans-serif;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(126, 224, 199, 0.06), transparent 50%),
+    radial-gradient(900px 500px at -10% 110%, rgba(232, 184, 74, 0.04), transparent 45%),
+    linear-gradient(180deg, #07090d 0%, #07090d 100%);
+}
+
+::selection {
+  background: rgba(126, 224, 199, 0.22);
+  color: #fff;
+}
+
+.font-serif {
+  font-family: var(--font-newsreader), "Times New Roman", serif;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.grid-fade {
+  background-image:
+    linear-gradient(rgba(232, 237, 244, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 237, 244, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
+
+.card {
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+
+.hairline {
+  border: 1px solid var(--line);
+}
+
+.band-genuine { color: var(--genuine); }
+.band-review { color: var(--review); }
+.band-high { color: var(--high); }
+.band-insufficient { color: var(--muted); }
+
+.bg-band-genuine { background: var(--genuine-dim); }
+.bg-band-review { background: var(--review-dim); }
+.bg-band-high { background: var(--high-dim); }
+.bg-band-insufficient { background: rgba(139, 150, 168, 0.12); }
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.live-dot {
+  animation: pulse-live 1.4s ease-in-out infinite;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #243041;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
