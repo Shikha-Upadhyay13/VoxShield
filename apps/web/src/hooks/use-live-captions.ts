@@ -89,7 +89,8 @@ export function useLiveCaptions(active: boolean, language: string) {
         else interim = text;
       }
       if (newlyFinal.length) {
-        setFinalLines((prev) => [...prev, ...newlyFinal].slice(-12));
+        // Keep a long call window — ransom scripts run past a dozen short finals.
+        setFinalLines((prev) => [...prev, ...newlyFinal].slice(-48));
       }
       setLiveLine(interim);
     };

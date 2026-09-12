@@ -31,11 +31,21 @@ CATEGORY_TERMS: dict[str, list[str]] = {
         "otp batao", "otp bhejo", "password batao", "पासवर्ड", "ओटीपी", "आधार",
     ],
     "coercion": [
-        "kill", "killed", "kidnap", "kidnapped", "kidnapping", "hostage", "police",
+        "kill", "killed", "kidnap", "kidnapped", "kidnapping", "kid napped", "hostage",
+        "police", "ransom", "harm her", "harm him", "harm your",
         "arrest", "arrested", "warrant", "court case", "fir", "jail", "custody",
         "digital arrest", "cyber crime case", "non bailable", "raid",
         "giraftar", "girftar", "police case", "jaan se", "maar dunga", "jaan ka khatra",
         "पुलिस", "गिरफ्तार", "अपहरण",
+        # Multi-word ransom / extortion — weak single words like "daughter" alone are
+        # not listed; SilverGuard still needs this layer to unlock the voice-call header.
+        "has been kidnapped", "been kidnapped", "we have her", "we have him",
+        "we have your", "her safety depends", "his safety depends",
+        "do exactly what i tell", "do exactly what i say",
+        "we know where you live", "we know where your",
+        "don't try to be clever", "dont try to be clever", "do not try to be clever",
+        "don't try to trace", "dont try to trace", "do not try to trace",
+        "trace this call",
         # Courier / customs hold is a top Indian SMS scam archetype.
         "customs", "parcel atka", "parcel hold", "contraband", "customs duty",
     ],
@@ -43,15 +53,20 @@ CATEGORY_TERMS: dict[str, list[str]] = {
         "don't tell", "dont tell", "do not tell", "tell no one", "keep this between us",
         "keep it secret", "don't tell anyone", "dont tell anyone", "don't disconnect",
         "dont disconnect", "do not disconnect", "stay on the line", "don't hang up",
-        "dont hang up", "kisi ko mat batana", "kisi ko na batao", "phone mat rakho",
+        "dont hang up", "do not tell the police", "don't tell the police",
+        "dont tell the police", "don't call the police", "dont call the police",
+        "do not call the police",
+        "kisi ko mat batana", "kisi ko na batao", "phone mat rakho",
         "mat batana", "किसी को मत बताना",
     ],
     "urgency": [
+        # Everyday English ("quickly", "hurry") is too common in normal stories.
+        # Prefer scam-shaped urgency: deadlines, warnings, act-now CTAs, Hinglish jaldi.
         "right now", "immediately", "urgent", "urgently", "emergency", "last warning",
         "final warning", "within 10 minutes", "within 5 minutes", "before it's too late",
-        "no time", "hurry", "quickly", "at once", "please act now", "act now",
-        "click to proceed", "click here", "abhi", "abhi bhejo", "jaldi", "jaldi kare",
-        "jaldi karo", "turant", "foran", "अभी", "जल्दी", "तुरंत",
+        "please act now", "act now", "click to proceed", "click here",
+        "abhi", "abhi bhejo", "jaldi", "jaldi kare", "jaldi karo", "turant", "foran",
+        "अभी", "जल्दी", "तुरंत",
     ],
     "money": [
         "money", "transfer", "transfer money", "send money", "payment", "pay now",
@@ -61,7 +76,8 @@ CATEGORY_TERMS: dict[str, list[str]] = {
         "send", "send me", "bhej", "bhejo", "bhej do", "bhej dena", "transfer karo",
         "paisa", "paise", "paise bhejo", "rupaye", "rupees", "paise chahiye",
         "loan", "instant loan", "loan approval", "pre-approved", "customs duty",
-        "release fee", "pay karke", "पैसा", "पैसे", "रुपये",
+        "release fee", "pay karke", "get the money", "money together",
+        "how to transfer", "पैसा", "पैसे", "रुपये",
     ],
     "authority": [
         "cbi", "income tax", "customs", "rbi", "reserve bank", "trai", "epfo",

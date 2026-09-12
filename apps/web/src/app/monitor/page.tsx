@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { PageIntro } from "@/components/atmosphere";
 import {
   AuthenticityPanel,
@@ -21,17 +22,16 @@ import { useSession } from "@/store/session-provider";
 import type { EngineOk, EngineResponse, Verdict } from "@/lib/types";
 
 function mergeTextFraud(audio: EngineOk | null, textResult: EngineOk): EngineOk {
-  // Captions arrive first. Keep any real voice score we already have, and always
-  // take the stronger fraud reading so a spoken scam script turns the ring red.
+  // Captions own the latest fraud reading for what was just said. Do not keep a
+  // sticky max — that left the ring red after a scam test even when the next
+  // story was harmless ("quickly" etc.).
   if (!audio || audio.authenticity.degraded || audio.authenticity.signals.length === 0) {
     return textResult;
   }
-  const fraud =
-    textResult.fraud.score >= audio.fraud.score ? textResult.fraud : audio.fraud;
-  const verdict = pickVerdict(audio.authenticity.score, fraud.score);
+  const verdict = pickVerdict(audio.authenticity.score, textResult.fraud.score);
   return {
     ...audio,
-    fraud,
+    fraud: textResult.fraud,
     verdict,
     confidence: Math.max(audio.confidence, textResult.confidence),
   };
@@ -65,25 +65,32 @@ export default function MonitorPage() {
       setPhase("listening");
       if (isOk(next)) {
         setResult((prev) => {
-          // Audio stage owns authenticity; keep a stronger caption-based fraud score
-          // if Whisper returned empty or weak fraud on a short window.
-          if (prev && prev.fraud.score > next.fraud.score && prev.fraud.transcript) {
-            return {
+          // Audio owns authenticity. Keep an earlier caption fraud score only when
+          // this audio window has no usable transcript (Whisper empty) — never as a
+          // sticky high-water mark across later clear speech.
+          let merged: EngineOk = next;
+          const audioWords = (next.fraud.transcript || "").trim();
+          if (
+            prev?.fraud.transcript &&
+            prev.fraud.score > next.fraud.score &&
+            audioWords.split(/\s+/).filter(Boolean).length < 4
+          ) {
+            merged = {
               ...next,
               fraud: prev.fraud,
               verdict: pickVerdict(next.authenticity.score, prev.fraud.score),
             };
           }
-          return next;
+          updateLive({
+            result: engineToLegacy(merged),
+            insufficient: false,
+            appendPoint: { tMs, score: merged.authenticity.score },
+            label: "Live call window",
+            source: "live",
+          });
+          return merged;
         });
         setInsufficient(null);
-        updateLive({
-          result: engineToLegacy(next),
-          insufficient: false,
-          appendPoint: { tMs, score: next.authenticity.score },
-          label: "Live call window",
-          source: "live",
-        });
         return;
       }
       setInsufficient(next.reason);
@@ -115,28 +122,34 @@ export default function MonitorPage() {
       lastScoredText.current = "";
       return;
     }
-    const text = (captions.finalText || captions.transcript).trim();
-    const words = text.split(/\s+/).filter(Boolean);
-    if (words.length < 4) return;
+    // Score a trailing window only. The full session buffer still shows in the UI,
+    // but fraud must follow what was said recently — otherwise a prior scam script
+    // keeps the ring red through a later harmless story.
+    const allWords = captions.transcript.trim().split(/\s+/).filter(Boolean);
+    if (allWords.length < 4) return;
+    const text = allWords.slice(-55).join(" ");
     if (text === lastScoredText.current) return;
 
     const timer = window.setTimeout(() => {
       lastScoredText.current = text;
       void scoreText(text, { preset })
         .then((scored) => {
-          setResult((prev) => mergeTextFraud(prev, scored));
-          setPhase("listening");
-          updateLive({
-            result: engineToLegacy(scored),
-            insufficient: false,
-            label: "Live captions",
-            source: "live",
+          setResult((prev) => {
+            const merged = mergeTextFraud(prev, scored);
+            updateLive({
+              result: engineToLegacy(merged),
+              insufficient: false,
+              label: "Live captions",
+              source: "live",
+            });
+            return merged;
           });
+          setPhase("listening");
         })
         .catch(() => {
           /* engine may be warming; audio path still runs */
         });
-    }, 600);
+    }, 450);
 
     return () => window.clearTimeout(timer);
   }, [
@@ -147,18 +160,14 @@ export default function MonitorPage() {
     updateLive,
   ]);
 
-  async function toggle() {
-    if (session.active) {
-      live.stop();
-      stopSession();
-      setPhase("idle");
-      return;
-    }
+  async function beginListening() {
     setBusy(true);
     setResult(null);
     setInsufficient(null);
     setNotice(null);
+    live.setError(null);
     captions.clear();
+    lastScoredText.current = "";
     try {
       startSession("live", "Live call window");
       setPhase("listening");
@@ -182,9 +191,30 @@ export default function MonitorPage() {
     }
   }
 
+  async function toggle() {
+    if (session.active) {
+      live.stop();
+      stopSession();
+      setPhase("idle");
+      return;
+    }
+    await beginListening();
+  }
+
+  async function freshRecording() {
+    // Clear scores, captions, and timeline — then open a new mic session.
+    if (session.active) {
+      live.stop();
+      stopSession();
+    }
+    setPhase("idle");
+    await beginListening();
+  }
+
   const liveWords = captions.transcript;
   const engineWords = result?.fraud.transcript?.trim() || null;
   const displayTranscript = liveWords || engineWords;
+  const canFresh = Boolean(session.active || result || displayTranscript || live.error || notice);
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -229,7 +259,17 @@ export default function MonitorPage() {
               </label>
               <button
                 type="button"
-                onClick={toggle}
+                onClick={() => void freshRecording()}
+                disabled={busy || !canFresh}
+                title="Fresh recording — clear scores and captions, start again"
+                aria-label="Fresh recording"
+                className="btn-ghost !px-2.5 !py-2 disabled:opacity-40"
+              >
+                <RefreshCw className={clsx("h-4 w-4", busy && "animate-spin")} />
+              </button>
+              <button
+                type="button"
+                onClick={() => void toggle()}
                 disabled={busy}
                 className={clsx(
                   session.active

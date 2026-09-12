@@ -194,8 +194,14 @@ def analyze(
     fraud_score = int(round(100 * min(1.0, max(0.0, fraud_assessment.score))))
 
     # ---- Bands and verdict ---------------------------------------------------------
-    auth_thresholds = settings.thresholds(preset, "authenticity")
+    auth_thresholds = dict(settings.thresholds(preset, "authenticity"))
     fraud_thresholds = settings.thresholds(preset, "fraud")
+    # Until calibrate.py writes cutoffs from real/clone/replay clips, Stage 1 sits in
+    # a soft mid-band (~45–55) on ordinary laptop speech and the UI reads as "Caution"
+    # on clear human talk with zero fraud. Hold the review line higher until then.
+    if not settings.calibration.get("calibrated", False):
+        auth_thresholds["review"] = max(int(auth_thresholds["review"]), 55)
+        auth_thresholds["high"] = max(int(auth_thresholds["high"]), 75)
     authenticity_band = band_for(authenticity_score, auth_thresholds)
     fraud_band = band_for(fraud_score, fraud_thresholds)
     verdict = decide_verdict(authenticity_score, fraud_score, auth_thresholds, fraud_thresholds)
