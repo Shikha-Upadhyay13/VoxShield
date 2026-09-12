@@ -115,6 +115,8 @@ export interface EngineHealth {
   calibrated: boolean;
   models: Record<string, boolean>;
   notes: string[];
+  warming?: boolean;
+  ready?: boolean;
 }
 
 export interface VerdictCopy {

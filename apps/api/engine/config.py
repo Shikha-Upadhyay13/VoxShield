@@ -64,13 +64,28 @@ MODEL_IDS = {
 PROFILES: dict[str, dict[str, Any]] = {
     "full": {"ast": True, "w2v2": True, "whisper": "small", "silverguard": True},
     "lite": {"ast": True, "w2v2": False, "whisper": "base", "silverguard": True},
+    # Fraud-first for free-tier / phone demos: SilverGuard + tiny Whisper answer first;
+    # AST can be enabled later via VOXSHIELD_ENABLE_AST=1 after the service is warm.
+    "mobile": {"ast": False, "w2v2": False, "whisper": "tiny", "silverguard": True},
     "dsp_only": {"ast": False, "w2v2": False, "whisper": None, "silverguard": False},
 }
 
 SAMPLE_RATE = 16000
 STREAM_WINDOW_S = 4.0
 STREAM_INTERVAL_S = 2.0
+# Longer interval on lean profiles so CPU is not saturated mid-call.
+STREAM_INTERVAL_BY_PROFILE: dict[str, float] = {
+    "full": 2.0,
+    "lite": 2.5,
+    "mobile": 3.0,
+    "dsp_only": 2.0,
+}
 MAX_UPLOAD_S = 60.0
+
+
+def stream_interval_s(profile: str | None = None) -> float:
+    key = (profile or settings.profile).strip().lower()
+    return float(STREAM_INTERVAL_BY_PROFILE.get(key, STREAM_INTERVAL_S))
 
 
 def _env_bool(name: str, default: bool = False) -> bool:

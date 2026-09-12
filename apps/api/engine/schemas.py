@@ -128,3 +128,5 @@ class HealthOut(BaseModel):
     calibrated: bool
     models: dict[str, bool]
     notes: list[str] = Field(default_factory=list)
+    warming: bool = False
+    ready: bool = True

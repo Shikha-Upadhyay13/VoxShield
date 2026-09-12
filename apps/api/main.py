@@ -16,6 +16,7 @@ import base64
 import contextlib
 import json
 import logging
+import os
 from typing import Any
 
 import numpy as np
@@ -31,7 +32,7 @@ from engine.audio_io import (
     pcm16_to_float,
     resample_to,
 )
-from engine.config import SAMPLE_RATE, STREAM_INTERVAL_S, STREAM_WINDOW_S, settings
+from engine.config import SAMPLE_RATE, STREAM_WINDOW_S, settings, stream_interval_s
 from engine.schemas import HealthOut
 
 logging.basicConfig(
@@ -40,31 +41,50 @@ logging.basicConfig(
 )
 logger = logging.getLogger("voxshield.api")
 
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
+# Comma-separated extra origins from the host (Vercel production domain, etc.).
+_extra_origins = [
+    origin.strip()
+    for origin in os.environ.get("ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
 ]
+ALLOWED_ORIGINS = list(
+    dict.fromkeys(
+        [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+            *_extra_origins,
+        ]
+    )
+)
+
+# Set True while background model warmup is still running.
+_warming = False
 
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _warming
     logger.info("VoxShield engine %s starting, profile=%s", ENGINE_VERSION, settings.profile)
     if not settings.calibration.get("calibrated"):
         logger.warning(
             "Engine is NOT calibrated. Run 'python calibrate.py' against demo/audio/ "
             "before quoting any accuracy number."
         )
-    # Warm models up in a thread so the first request is not slow, but do not block
-    # startup: a machine with no downloaded weights should still serve DSP-only.
+
     async def _warm() -> None:
+        global _warming
+        _warming = True
         try:
-            await asyncio.to_thread(stage1_neural.warmup)
+            # Fraud path first so /score-text works while authenticity models load.
             await asyncio.to_thread(stage2_fraud.warmup)
+            await asyncio.to_thread(stage1_neural.warmup)
             logger.info("Warmup complete: %s", fusion.engine_status()["models"])
         except Exception as exc:  # noqa: BLE001
             logger.warning("Warmup problem: %s", exc)
+        finally:
+            _warming = False
 
     task = asyncio.create_task(_warm())
     try:
@@ -73,6 +93,7 @@ async def lifespan(app: FastAPI):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+        _warming = False
 
 
 app = FastAPI(
@@ -95,12 +116,17 @@ app.add_middleware(
 @app.get("/health", response_model=HealthOut)
 async def health() -> HealthOut:
     status = fusion.engine_status()
+    models = status["models"]
+    # Ready for live fraud when SilverGuard is up (or lexicon-only dsp_only profile).
+    fraud_ready = bool(models.get("silverguard")) or settings.profile == "dsp_only"
     return HealthOut(
         profile=settings.profile,
         engine_version=ENGINE_VERSION,
         calibrated=bool(settings.calibration.get("calibrated")),
-        models=status["models"],
+        models=models,
         notes=status["notes"],
+        warming=_warming,
+        ready=fraud_ready,
     )
 
 
@@ -228,7 +254,7 @@ class StreamSession:
     def should_score(self) -> bool:
         if self.busy:
             return False
-        needed = int(STREAM_INTERVAL_S * self.sample_rate)
+        needed = int(stream_interval_s() * self.sample_rate)
         return self.samples_since_score >= needed
 
     @property
