@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { PageIntro } from "@/components/atmosphere";
+import { PhoneOff, PhoneIncoming, RefreshCw, Shield } from "lucide-react";
 import {
   AuthenticityPanel,
   EngineBadge,
@@ -10,11 +9,13 @@ import {
   SignalTable,
   VerdictBanner,
 } from "@/components/detection-report";
+import { InstallBanner } from "@/components/install-banner";
 import { RiskRing } from "@/components/risk-ring";
 import { ScoreTimeline } from "@/components/score-timeline";
 import { SpectrogramBars, Waveform } from "@/components/waveform";
 import { clsx } from "@/lib/format";
 import { engineToLegacy, isOk, scoreText } from "@/lib/engine-client";
+import { ensureNotificationPermission, isThreatVerdict, notifyThreat } from "@/lib/threat-notify";
 import { useEngine } from "@/hooks/use-engine";
 import { useLiveCaptions } from "@/hooks/use-live-captions";
 import { useLiveStream } from "@/hooks/use-live-stream";
@@ -22,9 +23,6 @@ import { useSession } from "@/store/session-provider";
 import type { EngineOk, EngineResponse, Verdict } from "@/lib/types";
 
 function mergeTextFraud(audio: EngineOk | null, textResult: EngineOk): EngineOk {
-  // Captions own the latest fraud reading for what was just said. Do not keep a
-  // sticky max — that left the ring red after a scam test even when the next
-  // story was harmless ("quickly" etc.).
   if (!audio || audio.authenticity.degraded || audio.authenticity.signals.length === 0) {
     return textResult;
   }
@@ -53,20 +51,33 @@ export default function MonitorPage() {
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"idle" | "listening" | "analysing">("idle");
+  const [phase, setPhase] = useState<"ringing" | "listening" | "analysing" | "cut" | "idle">(
+    "ringing",
+  );
   const [result, setResult] = useState<EngineOk | null>(null);
   const [insufficient, setInsufficient] = useState<string | null>(null);
   const captions = useLiveCaptions(session.active);
   const lastScoredText = useRef("");
+  const lastNotified = useRef<string>("");
+  const scoreAbort = useRef<AbortController | null>(null);
+
+  const cutCall = useCallback(
+    (reason: string) => {
+      live.stop();
+      stopSession();
+      setPhase("cut");
+      setNotice(reason);
+      captions.clear();
+    },
+    [live, stopSession, captions],
+  );
 
   const handleResult = useCallback(
     (next: EngineResponse, tMs: number) => {
+      if (phase === "cut") return;
       setPhase("listening");
       if (isOk(next)) {
         setResult((prev) => {
-          // Audio owns authenticity. Keep an earlier caption fraud score only when
-          // this audio window has no usable transcript (Whisper empty) — never as a
-          // sticky high-water mark across later clear speech.
           let merged: EngineOk = next;
           const audioWords = (next.fraud.transcript || "").trim();
           if (
@@ -100,7 +111,7 @@ export default function MonitorPage() {
         source: "live",
       });
     },
-    [updateLive],
+    [updateLive, phase],
   );
 
   useEffect(() => {
@@ -110,20 +121,23 @@ export default function MonitorPage() {
       language: null,
       onLevel: (inputLevel) => updateLive({ inputLevel }),
       onResult: handleResult,
-      onNotice: setNotice,
-      onAnalysing: () => setPhase("analysing"),
+      onNotice: (message) => {
+        if (engine.health?.warming) {
+          setNotice("Engine waking up… hang on a few seconds, then try again.");
+          return;
+        }
+        setNotice(message);
+      },
+      onAnalysing: () => setPhase((p) => (p === "cut" ? p : "analysing")),
     });
-  }, [context, preset, live.updateOptions, updateLive, handleResult]);
+  }, [context, preset, live.updateOptions, updateLive, handleResult, engine.health?.warming]);
 
-  // Score the live caption text for fraud as soon as enough words land.
+  // Caption fraud path with abort on newer text.
   useEffect(() => {
-    if (!session.active) {
+    if (!session.active || phase === "cut") {
       lastScoredText.current = "";
       return;
     }
-    // Score a trailing window only. The full session buffer still shows in the UI,
-    // but fraud must follow what was said recently — otherwise a prior scam script
-    // keeps the ring red through a later harmless story.
     const allWords = captions.transcript.trim().split(/\s+/).filter(Boolean);
     if (allWords.length < 4) return;
     const text = allWords.slice(-55).join(" ");
@@ -131,8 +145,12 @@ export default function MonitorPage() {
 
     const timer = window.setTimeout(() => {
       lastScoredText.current = text;
+      scoreAbort.current?.abort();
+      const controller = new AbortController();
+      scoreAbort.current = controller;
       void scoreText(text, { preset })
         .then((scored) => {
+          if (controller.signal.aborted) return;
           setResult((prev) => {
             const merged = mergeTextFraud(prev, scored);
             updateLive({
@@ -143,10 +161,12 @@ export default function MonitorPage() {
             });
             return merged;
           });
-          setPhase("listening");
+          setPhase((p) => (p === "cut" ? p : "listening"));
         })
         .catch(() => {
-          /* engine may be warming; audio path still runs */
+          if (engine.health?.warming || engine.state === "offline") {
+            setNotice("Engine waking up… captions still appear; scoring resumes when ready.");
+          }
         });
     }, 450);
 
@@ -157,7 +177,27 @@ export default function MonitorPage() {
     session.active,
     preset,
     updateLive,
+    phase,
+    engine.health?.warming,
+    engine.state,
   ]);
+
+  // Threat notifications + auto-cut on critical.
+  useEffect(() => {
+    if (!result || phase === "cut") return;
+    const key = `${result.verdict}:${result.fraud.score}`;
+    if (isThreatVerdict(result.verdict) && key !== lastNotified.current) {
+      lastNotified.current = key;
+      void notifyThreat({
+        verdict: result.verdict,
+        fraudScore: result.fraud.score,
+        summary: result.fraud.transcript || undefined,
+      });
+    }
+    if (result.verdict === "critical") {
+      cutCall("Call blocked by VoxShield — critical clone + scam speech.");
+    }
+  }, [result, phase, cutCall]);
 
   async function beginListening() {
     setBusy(true);
@@ -167,8 +207,14 @@ export default function MonitorPage() {
     live.setError(null);
     captions.clear();
     lastScoredText.current = "";
+    lastNotified.current = "";
+    void ensureNotificationPermission();
     try {
-      startSession("live", "Live call window");
+      if (engine.state === "offline" || engine.health?.warming) {
+        setNotice("Engine waking up… retrying health before the mic opens.");
+        await engine.refresh();
+      }
+      startSession("live", "Call Shield");
       setPhase("listening");
       await live.start({
         context,
@@ -181,10 +227,10 @@ export default function MonitorPage() {
       });
     } catch {
       live.setError(
-        "Microphone permission was denied. Call-protection needs mic access — the same permission a Truecaller-style host would request.",
+        "Microphone permission was denied. Call Shield needs mic access while this screen stays open.",
       );
       stopSession();
-      setPhase("idle");
+      setPhase("ringing");
     } finally {
       setBusy(false);
     }
@@ -194,19 +240,21 @@ export default function MonitorPage() {
     if (session.active) {
       live.stop();
       stopSession();
-      setPhase("idle");
+      setPhase("ringing");
       return;
     }
     await beginListening();
   }
 
   async function freshRecording() {
-    // Clear scores, captions, and timeline — then open a new mic session.
     if (session.active) {
       live.stop();
       stopSession();
     }
-    setPhase("idle");
+    setPhase("ringing");
+    setResult(null);
+    setNotice(null);
+    captions.clear();
     await beginListening();
   }
 
@@ -214,26 +262,91 @@ export default function MonitorPage() {
   const engineWords = result?.fraud.transcript?.trim() || null;
   const displayTranscript = liveWords || engineWords;
   const canFresh = Boolean(session.active || result || displayTranscript || live.error || notice);
+  const warming = Boolean(engine.health?.warming) || engine.state === "checking";
+  const threat =
+    result && (result.verdict === "fraud_human" || result.verdict === "critical" || result.fraud.band === "high");
+
+  if (phase === "ringing" && !session.active && !result) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col justify-center gap-5 px-1">
+        <InstallBanner />
+        <section className="card frame relative overflow-hidden p-8 text-center sm:p-10">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-80"
+            style={{
+              background:
+                "radial-gradient(circle at 50% 20%, rgba(124,232,204,0.16), transparent 55%)",
+            }}
+          />
+          <div className="relative">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10">
+              <PhoneIncoming className="h-9 w-9 animate-pulse text-[var(--accent)]" />
+            </div>
+            <div className="kicker">Incoming call</div>
+            <h1 className="font-serif mt-3 text-3xl sm:text-4xl">Unknown number</h1>
+            <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[var(--muted)]">
+              Accept to open Call Shield. Keep this screen in the foreground — the mic cannot
+              stay live in the background.
+            </p>
+            {warming ? (
+              <p className="mt-4 text-xs text-[var(--review)]">Engine waking up…</p>
+            ) : null}
+            {!engine.health?.calibrated && engine.state === "online" ? (
+              <p className="mt-2 text-[11px] text-[var(--faint)]">
+                Authenticity not calibrated yet — fraud scoring still runs.
+              </p>
+            ) : null}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void beginListening()}
+              className="btn-primary mt-8 w-full sm:w-auto"
+            >
+              <Shield size={16} />
+              {busy ? "Opening mic…" : "Accept & protect"}
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "cut") {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col justify-center gap-5">
+        <section className="card frame border-[var(--high)]/50 bg-[var(--high)]/10 p-8 text-center sm:p-10">
+          <PhoneOff className="mx-auto h-12 w-12 text-[var(--high)]" />
+          <h1 className="font-serif mt-5 text-3xl text-[var(--high)]">Call blocked</h1>
+          <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+            {notice || "VoxShield cut the line on a critical threat."}
+          </p>
+          <button type="button" className="btn-primary mt-8" onClick={() => setPhase("ringing")}>
+            New call
+          </button>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <PageIntro
-        kicker="Live call path"
-        title="Listen on the call, then decide."
-        body="After permission, VoxShield scores the ongoing call — clone vs human, scam vs normal speech — and shows what was heard as you speak."
-      />
+      <InstallBanner />
 
-      {result ? (
-        <VerdictBanner verdict={result.verdict} confidence={result.confidence} />
+      {threat ? (
+        <div className="animate-in fade-in slide-in-from-top-2 rounded-xl border border-[var(--high)]/45 bg-[var(--high)]/15 px-4 py-3 text-sm text-[var(--high)]">
+          Threat on this call — hang up and call back on a number you already saved.
+        </div>
       ) : null}
+
+      {result ? <VerdictBanner verdict={result.verdict} confidence={result.confidence} /> : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
         <section className="card frame flex flex-col p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-medium">Live detection</div>
+              <div className="text-sm font-medium">Call Shield</div>
               <div className="text-xs text-[var(--faint)]">
-                Stand-in for a host app&apos;s call stream after the user allows detection.
+                Live authenticity + fraud while you stay on this screen.
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -241,7 +354,7 @@ export default function MonitorPage() {
                 type="button"
                 onClick={() => void freshRecording()}
                 disabled={busy || !canFresh}
-                title="Fresh recording — clear scores and captions, start again"
+                title="Fresh recording"
                 aria-label="Fresh recording"
                 className="btn-ghost !px-2.5 !py-2 disabled:opacity-40"
               >
@@ -258,11 +371,7 @@ export default function MonitorPage() {
                   "!py-2",
                 )}
               >
-                {session.active
-                  ? "End permission"
-                  : busy
-                    ? "Requesting mic…"
-                    : "Allow live detection"}
+                {session.active ? "End call" : busy ? "Requesting mic…" : "Start shield"}
               </button>
             </div>
           </div>
@@ -275,7 +384,7 @@ export default function MonitorPage() {
             </div>
             {phase === "analysing" ? (
               <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-lg border border-[var(--accent)]/30 bg-black/70 px-3 py-2 text-[11px] text-[var(--accent)]">
-                Engine analysing… captions above keep updating while you speak.
+                Engine analysing… captions keep updating.
               </div>
             ) : null}
           </div>
@@ -288,9 +397,6 @@ export default function MonitorPage() {
                 style={{ width: `${Math.round(session.inputLevel * 100)}%` }}
               />
             </div>
-            <div className="font-mono text-xs text-[var(--muted)]">
-              {Math.round(session.inputLevel * 100)}
-            </div>
             <EngineBadge
               source={live.usingFallback ? "browser-fallback" : "engine"}
               profile={engine.health?.profile}
@@ -298,26 +404,20 @@ export default function MonitorPage() {
             />
           </div>
 
+          {warming ? (
+            <p className="mt-3 rounded-lg border border-[var(--review)]/40 bg-[var(--review)]/10 p-3 text-xs text-[var(--review)]">
+              Engine waking up… fraud scoring resumes when SilverGuard is ready.
+            </p>
+          ) : null}
           {live.error ? <p className="mt-3 text-sm text-[var(--high)]">{live.error}</p> : null}
-          {notice ? (
+          {notice && !warming ? (
             <p className="mt-3 rounded-lg border border-[var(--review)]/40 bg-[var(--review)]/10 p-3 text-xs leading-5 text-[var(--review)]">
               {notice}
             </p>
           ) : null}
 
           <div className="mt-5 rounded-xl border border-white/10 bg-black/25 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="kicker">Live transcript</div>
-              <div className="text-[11px] text-[var(--faint)]">
-                {captions.supported
-                  ? captions.liveLine
-                    ? "Listening…"
-                    : session.active
-                      ? "Speak — words appear here as you talk"
-                      : "Waiting for permission"
-                  : "Browser captions unavailable — engine transcript shows after each score"}
-              </div>
-            </div>
+            <div className="kicker">Live transcript</div>
             <p
               className={clsx(
                 "mt-3 min-h-[4.5rem] font-serif text-xl leading-8",
@@ -333,19 +433,11 @@ export default function MonitorPage() {
                       {captions.liveLine}
                     </span>
                   ) : null}
-                  {!liveWords && engineWords ? <span>{engineWords}</span> : null}
                 </>
-              ) : session.active ? (
-                "…"
               ) : (
-                "Grant live detection, then speak. Captions stream under the waveform."
+                "Speak — words appear here as you talk."
               )}
             </p>
-            {engineWords && liveWords && engineWords !== liveWords ? (
-              <p className="mt-2 text-xs leading-5 text-[var(--faint)]">
-                Engine heard: <span className="text-[var(--muted)]">{engineWords}</span>
-              </p>
-            ) : null}
             {result?.fraud.matched_terms.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {result.fraud.matched_terms.map((term) => (
@@ -360,33 +452,28 @@ export default function MonitorPage() {
             ) : null}
           </div>
 
-          <div className="mt-5">
-            <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">
-              Call context from the host app
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["unknownNumber", "Unknown number"],
-                  ["firstTimeCaller", "First-time caller"],
-                  ["urgencyLanguage", "Flagged by analyst"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setContext({ [key]: !context[key] })}
-                  className={clsx(
-                    "rounded-full border px-3 py-1.5 text-xs",
-                    context[key]
-                      ? "border-[var(--accent)]/40 bg-[var(--accent-dim)] text-[var(--accent)]"
-                      : "border-[var(--line)] text-[var(--muted)]",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {(
+              [
+                ["unknownNumber", "Unknown number"],
+                ["firstTimeCaller", "First-time caller"],
+                ["urgencyLanguage", "Flagged by analyst"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setContext({ [key]: !context[key] })}
+                className={clsx(
+                  "rounded-full border px-3 py-1.5 text-xs",
+                  context[key]
+                    ? "border-[var(--accent)]/40 bg-[var(--accent-dim)] text-[var(--accent)]"
+                    : "border-[var(--line)] text-[var(--muted)]",
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </section>
 
@@ -399,8 +486,7 @@ export default function MonitorPage() {
               size={180}
             />
             <p className="mt-2 max-w-[14rem] text-center text-[11px] leading-4 text-[var(--faint)]">
-              <span className="text-[var(--genuine)]">Green</span> = sounds human ·{" "}
-              <span className="text-[var(--high)]">Red</span> = sounds synthetic
+              Green = human · Red = synthetic
             </p>
           </div>
           <div className="h-px w-full bg-white/8" />
@@ -412,8 +498,7 @@ export default function MonitorPage() {
               size={180}
             />
             <p className="mt-2 max-w-[14rem] text-center text-[11px] leading-4 text-[var(--faint)]">
-              <span className="text-[var(--genuine)]">Green</span> = safe words ·{" "}
-              <span className="text-[var(--high)]">Red</span> = scam / fraud language
+              Green = safe · Red = scam speech
             </p>
           </div>
           {insufficient && session.active ? (
