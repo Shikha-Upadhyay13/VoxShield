@@ -194,6 +194,36 @@ def main() -> int:
     markers, words = count_disfluencies("umm main matlab woh haan theek hai")
     results.append(check("disfluency counting", markers >= 3 and words == 7, f"{markers} in {words}"))
 
+    # --- Neural detectors -------------------------------------------------------
+    if settings.profile != "dsp_only":
+        print("\nNeural detectors:")
+        from engine import stage1_neural
+
+        stage1_neural.warmup()
+        status = stage1_neural.model_status()
+        for key, loaded in status.items():
+            results.append(check(f"{key} loaded", loaded))
+        for note in stage1_neural.label_notes():
+            print(f"  note: {note}")
+
+        human_neural = stage1_neural.score_audio(human16, SAMPLE_RATE)
+        clone_neural = stage1_neural.score_audio(clone16, SAMPLE_RATE)
+        for key in sorted(set(human_neural.scores) | set(clone_neural.scores)):
+            h = human_neural.scores.get(key)
+            c = clone_neural.scores.get(key)
+            print(
+                f"  {key:<12} human={h if h is None else f'{h:.3f}'}"
+                f"  clone={c if c is None else f'{c:.3f}'}"
+            )
+        # Not asserted. These are synthesised tones, not speech, and a detector trained
+        # on real speech has every right to be confused by them. What matters is that
+        # the models produce a number at all; polarity is verified on real clips by
+        # calibrate.py.
+        print(
+            "  Polarity on real audio is NOT verified here. Run calibrate.py against\n"
+            "  demo/audio/real and demo/audio/clone before trusting these scores."
+        )
+
     # --- Full pipeline ----------------------------------------------------------
     print("\nFull pipeline:")
     human_result = fusion.analyze(human16, SAMPLE_RATE, spectral_samples=human, spectral_rate=RATE)

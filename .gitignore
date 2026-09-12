@@ -20,6 +20,8 @@ out/
 *.ogg
 *.webm
 demo/audio/
+# ...but the recording instructions are the whole point of the folder existing.
+!demo/audio/README.md
 
 # Model weights (~1 GB for the full profile) are downloaded, never vendored.
 *.pt
