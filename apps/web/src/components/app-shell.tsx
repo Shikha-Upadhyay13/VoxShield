@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   Activity,
   BookOpen,
+  ClipboardCheck,
   Fingerprint,
   FolderOpen,
   GitCompare,
@@ -22,15 +23,22 @@ import { useSession } from "@/store/session-provider";
 import { BrandMark } from "./brand-mark";
 import { ModeSwitch } from "./mode-switch";
 
+/** Primary phone nav — Shield / Playbook / Desk */
+const PRIMARY = [
+  { href: "/monitor", label: "Shield", icon: Shield },
+  { href: "/protect", label: "Playbook", icon: BookOpen },
+  { href: "/operations", label: "Desk", icon: LayoutDashboard },
+];
+
 const NAV_GROUPS = [
   {
-    label: "Overview",
-    items: [{ href: "/console", label: "Console", icon: Home }],
+    label: "Core",
+    items: PRIMARY,
   },
   {
     label: "Detect",
     items: [
-      { href: "/monitor", label: "Live Monitor", icon: Activity },
+      { href: "/console", label: "Console", icon: Home },
       { href: "/analyze", label: "Analyze", icon: Upload },
       { href: "/compare", label: "Compare", icon: GitCompare },
     ],
@@ -38,15 +46,14 @@ const NAV_GROUPS = [
   {
     label: "Respond",
     items: [
-      { href: "/protect", label: "Protect", icon: Shield },
-      { href: "/operations", label: "Operations", icon: LayoutDashboard },
       { href: "/incidents", label: "Incidents", icon: FolderOpen },
+      { href: "/calibrate", label: "Calibrate", icon: ClipboardCheck },
     ],
   },
   {
     label: "Library",
     items: [
-      { href: "/scenarios", label: "Scenarios", icon: BookOpen },
+      { href: "/scenarios", label: "Scenarios", icon: Activity },
       { href: "/enroll", label: "Voiceprint", icon: Fingerprint },
       { href: "/guide", label: "How it works", icon: Info },
     ],
@@ -81,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span>
               <span className="block text-[15px] font-medium tracking-tight">VoxShield</span>
               <span className="block text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">
-                Voice integrity
+                Call protection
               </span>
             </span>
           </Link>
@@ -173,7 +180,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             >
               <span className={clsx("h-1.5 w-1.5 rounded-full", live ? "live-dot bg-[var(--high)]" : "bg-[var(--faint)]")} />
-              {live ? "Session live" : "Idle"}
+              {live ? "Shield live" : "Idle"}
             </span>
             {band ? (
               <span className={`hidden rounded-full bg-band-${band} px-2.5 py-1 text-[11px] capitalize sm:inline band-${band}`}>
@@ -182,6 +189,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ) : null}
           </div>
         </header>
+
+        {/* Mobile primary strip */}
+        <nav className="flex border-b border-[var(--line)] bg-[var(--bg)]/80 px-2 py-2 lg:hidden">
+          {PRIMARY.map((item) => {
+            const active = pathname === item.href;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={clsx(
+                  "flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-[10px] uppercase tracking-[0.12em]",
+                  active ? "bg-white/6 text-[var(--accent)]" : "text-[var(--faint)]",
+                )}
+              >
+                <Icon size={16} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
         <main className="relative flex-1 px-4 py-7 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
