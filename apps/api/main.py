@@ -129,7 +129,7 @@ async def analyze(
     file: UploadFile = File(...),
     preset: str = Form("standard"),
     language: str | None = Form(None),
-    want_transcript: bool = Form(False),
+    want_transcript: bool = Form(True),
 ) -> JSONResponse:
     payload = await file.read()
     if not payload:
@@ -216,6 +216,7 @@ class StreamSession:
 async def stream(websocket: WebSocket) -> None:
     await websocket.accept()
     session = StreamSession()
+    score_task: asyncio.Task[None] | None = None
     logger.info("Stream session opened")
 
     try:
@@ -243,12 +244,18 @@ async def stream(websocket: WebSocket) -> None:
                             "sample_rate": session.sample_rate,
                             "preset": session.preset,
                             "engine_version": ENGINE_VERSION,
+                            "note": (
+                                "First score on CPU usually takes 10–20 seconds because "
+                                "transcription and both detectors run on the trailing window."
+                            ),
                         }
                     )
                     continue
                 if kind == "pcm16":
                     chunk = pcm16_to_float(base64.b64decode(parsed.get("data", "")))
                 elif kind == "stop":
+                    if score_task and not score_task.done():
+                        await score_task
                     await _score_and_send(websocket, session, final=True)
                     break
                 else:
@@ -259,7 +266,9 @@ async def stream(websocket: WebSocket) -> None:
 
             session.append(chunk)
             if session.should_score:
-                await _score_and_send(websocket, session)
+                # Score in the background so the receive loop keeps accepting audio.
+                # Blocking here made the mic look dead for 15+ seconds on CPU.
+                score_task = asyncio.create_task(_score_and_send(websocket, session))
 
     except WebSocketDisconnect:
         logger.info("Stream session closed by client")
@@ -268,6 +277,10 @@ async def stream(websocket: WebSocket) -> None:
         with contextlib.suppress(Exception):
             await websocket.send_json({"status": "error", "reason": str(exc)})
     finally:
+        if score_task and not score_task.done():
+            score_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await score_task
         with contextlib.suppress(Exception):
             await websocket.close()
 
@@ -279,9 +292,21 @@ async def _score_and_send(
 ) -> None:
     if session.buffer.size == 0:
         return
+    if session.busy and not final:
+        return
     session.busy = True
     session.samples_since_score = 0
     try:
+        with contextlib.suppress(Exception):
+            await websocket.send_json(
+                {
+                    "status": "analysing",
+                    "t_ms": session.elapsed_ms,
+                    "audio_ms": int(1000 * session.buffer.size / session.sample_rate)
+                    if session.sample_rate
+                    else 0,
+                }
+            )
         model_audio, native = session.window()
         result = await asyncio.to_thread(
             fusion.analyze,
@@ -294,8 +319,18 @@ async def _score_and_send(
             not final,
             int(STREAM_WINDOW_S * 1000),
             session.elapsed_ms,
-            False,
+            True,  # always return the transcript for the live UI
         )
         await websocket.send_json(result.model_dump())
+        if result.status == "ok":
+            logger.info("Stream score %s", fusion.summarize(result))
+        else:
+            logger.info("Stream gate: %s", result.reason)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Stream score failed: %s", exc)
+        with contextlib.suppress(Exception):
+            await websocket.send_json({"status": "error", "reason": str(exc)})
     finally:
         session.busy = False

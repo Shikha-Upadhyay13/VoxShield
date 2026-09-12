@@ -79,23 +79,24 @@ export default function HomePage() {
               <span className="italic text-[var(--accent)]"> can be faked.</span>
             </h1>
             <p className="mt-5 max-w-lg text-base leading-8 text-[var(--muted)] sm:text-lg">
-              Score a live call for cloning while it is still happening — then tell a
-              family or a bank analyst what to do before money moves.
+              Not another upload app — call-protection middleware. Embed into Truecaller-class
+              diallers: after permission, score the live call for cloning and scam speech, alert
+              the user, and later cut the line when the verdict is critical.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link href="/monitor" className="btn-primary">
-                Start live check
+                Simulate live call
                 <ArrowRight size={16} />
               </Link>
               <Link href="/analyze" className="btn-ghost">
-                Upload audio
+                Offline clip (demo only)
               </Link>
             </div>
             <div className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-[var(--line)] pt-6">
               {[
-                ["< 3s", "First score"],
+                ["Live WS", "In-call stream"],
                 ["0 audio", "Stored by default"],
-                ["EN + HI", "Keyword pack"],
+                ["EN + HI", "Fraud lexicon"],
               ].map(([value, label]) => (
                 <div key={label}>
                   <div className="font-serif text-2xl">{value}</div>

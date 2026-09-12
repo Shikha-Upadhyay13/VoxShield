@@ -98,7 +98,8 @@ export async function analyzeBlob(
 
 export interface StreamHandlers {
   onResult: (result: EngineResponse) => void;
-  onReady?: (info: { sampleRate: number; engineVersion: string }) => void;
+  onReady?: (info: { sampleRate: number; engineVersion: string; note?: string }) => void;
+  onAnalysing?: (info: { tMs: number; audioMs: number }) => void;
   onError?: (message: string) => void;
   onClose?: () => void;
 }
@@ -170,13 +171,27 @@ export class EngineStream {
         try {
           const parsed = JSON.parse(event.data) as
             | EngineResponse
-            | { status: "ready"; sample_rate: number; engine_version: string }
+            | {
+                status: "ready";
+                sample_rate: number;
+                engine_version: string;
+                note?: string;
+              }
+            | { status: "analysing"; t_ms?: number; audio_ms?: number }
             | { status: "error"; reason: string };
 
           if (parsed.status === "ready") {
             this.handlers.onReady?.({
               sampleRate: parsed.sample_rate,
               engineVersion: parsed.engine_version,
+              note: parsed.note,
+            });
+            return;
+          }
+          if (parsed.status === "analysing") {
+            this.handlers.onAnalysing?.({
+              tMs: parsed.t_ms ?? 0,
+              audioMs: parsed.audio_ms ?? 0,
             });
             return;
           }

@@ -17,6 +17,7 @@ interface StreamOptions {
   onLevel: (level: number) => void;
   onResult: (result: EngineResponse, tMs: number) => void;
   onNotice: (message: string | null) => void;
+  onAnalysing?: (info: { tMs: number; audioMs: number }) => void;
 }
 
 interface Graph {
@@ -111,6 +112,12 @@ export function useLiveStream() {
         {
           onResult: (result) => {
             optionsRef.current?.onResult(result, Date.now() - startedAt);
+          },
+          onReady: (info) => {
+            if (info.note) optionsRef.current?.onNotice(info.note);
+          },
+          onAnalysing: (info) => {
+            optionsRef.current?.onAnalysing?.(info);
           },
           onError: (message) => {
             setUsingFallback(true);

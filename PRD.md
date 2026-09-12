@@ -122,7 +122,18 @@ Arjun handles high-value phone instructions. He needs a live risk gauge, caller 
 
 ### 5.3 Integration owner (API consumer)
 
-A future CBS / CCaaS / telecom integrator. For SIH they only need a documented `POST /analyze` and `WS /stream` plus a sample `curl` on the Operations screen.
+VoxShield is **not** a standalone consumer app where people upload recordings. The product
+is an embeddable detection layer for hosts such as Truecaller, bank diallers, CCaaS, or
+carrier stacks:
+
+1. The host requests permission to analyse the call.
+2. While the call is live, audio (or features) stream into `WS /stream`.
+3. VoxShield returns two scores + a verdict; the host shows an alert.
+4. Future: the host can auto-cut or hold the call when the verdict is `critical`.
+
+File upload (`POST /analyze`) exists for SIH demos, calibration, and offline QA — not as
+the primary user journey. For SIH they need a documented `POST /analyze` and `WS /stream`
+plus a sample `curl` on the Operations screen.
 
 ### 5.4 Judge / invigilator
 

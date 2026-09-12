@@ -210,14 +210,18 @@ export function FraudPanel({ result }: { result: EngineOk }) {
       ) : null}
 
       {fraud.transcript ? (
-        <details className="mt-4">
-          <summary className="cursor-pointer text-[11px] uppercase tracking-[0.18em] text-[var(--faint)]">
-            Transcript
-          </summary>
-          <p className="mt-2 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs leading-6 text-[var(--muted)]">
+        <div className="mt-4">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--faint)]">
+            What was said
+          </div>
+          <p className="mt-2 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm leading-6 text-[var(--fg)]">
             {fraud.transcript}
           </p>
-        </details>
+        </div>
+      ) : fraud.transcript_available ? (
+        <p className="mt-4 text-xs text-[var(--muted)]">
+          Speech was detected, but the transcript was not returned in this response.
+        </p>
       ) : null}
     </div>
   );

@@ -110,9 +110,9 @@ export default function AnalyzePage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageIntro
-        kicker="File path"
+        kicker="Offline / lab path"
         title="Prove it on a clip."
-        body="Upload a recording and the engine answers two questions: is the voice synthetic, and are the words a scam. This is the safety net when the hall is too loud for the live mic."
+        body="Upload is a demo and calibration safety net — not the product. In production the same engine rides inside a host app's live call stream after the user grants detection permission."
       />
 
       <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
