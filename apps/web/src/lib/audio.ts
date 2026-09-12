@@ -30,7 +30,7 @@ export function downsample(input: Float32Array, fromRate: number, toRate = 16000
   return { samples, sampleRate: toRate };
 }
 
-export async function decodeFile(file: File): Promise<AudioBuffer> {
+export async function decodeFile(file: Blob): Promise<AudioBuffer> {
   const ctx = new AudioContext();
   const raw = await file.arrayBuffer();
   const buffer = await ctx.decodeAudioData(raw.slice(0));
