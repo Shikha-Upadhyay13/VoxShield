@@ -281,24 +281,38 @@ export function EngineBadge({
   source,
   latencyMs,
   profile,
+  warming,
+  calibrated,
 }: {
   source?: string;
   latencyMs?: number;
   profile?: string;
+  warming?: boolean;
+  calibrated?: boolean;
 }) {
   const fallback = source === "browser-fallback";
+  const tone = fallback || warming ? "review" : "accent";
   return (
     <div
       className={clsx(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em]",
-        fallback
+        "inline-flex flex-wrap items-center gap-2 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em]",
+        tone === "review"
           ? "border-[var(--review)]/40 bg-[var(--review)]/10 text-[var(--review)]"
           : "border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--accent)]",
       )}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {fallback ? "Browser fallback · not the real engine" : `Engine${profile ? ` · ${profile}` : ""}`}
-      {!fallback && latencyMs !== undefined ? <span className="opacity-60">{latencyMs} ms</span> : null}
+      <span className={clsx("h-1.5 w-1.5 rounded-full bg-current", warming && "animate-pulse")} />
+      {fallback
+        ? "Browser fallback · not the real engine"
+        : warming
+          ? "Engine waking up…"
+          : `Engine${profile ? ` · ${profile}` : ""}`}
+      {!fallback && !warming && latencyMs !== undefined ? (
+        <span className="opacity-60">{latencyMs} ms</span>
+      ) : null}
+      {!fallback && calibrated === false ? (
+        <span className="opacity-70 normal-case tracking-normal">uncalibrated</span>
+      ) : null}
     </div>
   );
 }

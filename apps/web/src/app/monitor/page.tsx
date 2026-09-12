@@ -401,6 +401,8 @@ export default function MonitorPage() {
               source={live.usingFallback ? "browser-fallback" : "engine"}
               profile={engine.health?.profile}
               latencyMs={result?.meta.latency_ms}
+              warming={warming}
+              calibrated={engine.health?.calibrated}
             />
           </div>
 
