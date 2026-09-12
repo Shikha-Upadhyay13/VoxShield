@@ -40,13 +40,13 @@ export function useEngine() {
   useEffect(() => {
     mounted.current = true;
     void refresh();
-    // Re-poll slowly so starting uvicorn mid-session is picked up without a reload.
-    const timer = setInterval(() => void refresh(), 15_000);
+    // Faster poll while warming / offline so cold Render recovers without a full reload.
+    const timer = setInterval(() => void refresh(), health?.warming || state !== "online" ? 5_000 : 15_000);
     return () => {
       mounted.current = false;
       clearInterval(timer);
     };
-  }, [refresh]);
+  }, [refresh, health?.warming, state]);
 
   /** Analyse a file through the engine, falling back to the browser scorer. */
   const analyzeFile = useCallback(

@@ -128,14 +128,15 @@ export function useLiveStream() {
           onError: (message) => {
             setUsingFallback(true);
             optionsRef.current?.onNotice(
-              `${message} Falling back to the in-browser scorer, which cannot read the words.`,
+              `${message} Engine may be waking up — wait for health, then tap refresh. ` +
+                "In-browser fallback cannot read the words.",
             );
           },
           onClose: () => {
             if (graphRef.current) {
               setUsingFallback(true);
               optionsRef.current?.onNotice(
-                "Engine stream closed. Falling back to the in-browser scorer.",
+                "Engine stream closed. If the API just woke from sleep, wait a few seconds and start a fresh recording.",
               );
             }
           },
@@ -150,8 +151,8 @@ export function useLiveStream() {
         graph.socket = null;
         setUsingFallback(true);
         options.onNotice(
-          "Detection engine is not running, so this session uses the in-browser fallback. " +
-            "Start it with 'uvicorn main:app --port 8000' in apps/api for real detection.",
+          "Detection engine is waking up or unreachable. Keep this tab open and retry — " +
+            "do not treat the browser fallback as real fraud detection.",
         );
       }
 

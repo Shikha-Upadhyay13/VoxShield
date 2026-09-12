@@ -30,6 +30,17 @@ export default function GuidePage() {
       </div>
 
       <section className="card p-6 sm:p-8">
+        <div className="kicker">Host path</div>
+        <h2 className="font-serif mt-3 text-3xl">Truecaller-class later. Phone PWA now.</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
+          Today&apos;s demo is an installable Call Shield on the phone: mic permission, live
+          dual scores, notifications, and auto-cut on critical. The same FastAPI engine is what a
+          dialler host would call over WebSocket after the user allows detection — we are not
+          waiting on a partner SDK to prove the product.
+        </p>
+      </section>
+
+      <section className="card p-6 sm:p-8">
         <div className="kicker">What we will not fake</div>
         <h2 className="font-serif mt-3 text-3xl">Detection first. Chrome later.</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
@@ -40,6 +51,7 @@ export default function GuidePage() {
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/compare" className="btn-primary">See A / B bench</Link>
           <Link href="/scenarios" className="btn-ghost">Load a story</Link>
+          <Link href="/calibrate" className="btn-ghost">Calibration checklist</Link>
         </div>
       </section>
 
