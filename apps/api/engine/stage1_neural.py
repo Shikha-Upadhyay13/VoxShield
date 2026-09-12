@@ -25,7 +25,12 @@ logger = logging.getLogger("voxshield.stage1")
 # AST is trained on ~10.24 s windows; longer audio is chunked and averaged.
 CHUNK_SECONDS = 10.0
 
-_FAKE_PATTERN = re.compile(r"fake|spoof|synthetic|deepfake|generated|ai", re.IGNORECASE)
+# "ai" is bounded on purpose. Unbounded, it matches inside ordinary words, and because
+# the fake pattern is tested first a stray match on a genuine label would invert every
+# verdict the product produces.
+_FAKE_PATTERN = re.compile(
+    r"fake|spoof|synthetic|deepfake|generated|cloned|\bai\b|ai[\s_-]?gen", re.IGNORECASE
+)
 _REAL_PATTERN = re.compile(r"real|bona[\s_-]?fide|genuine|human|authentic", re.IGNORECASE)
 
 

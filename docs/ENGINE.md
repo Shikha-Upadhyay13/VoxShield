@@ -93,8 +93,25 @@ and work on Windows.
 
 | Role | Hugging Face ID | Arch | Size | License |
 |---|---|---|---|---|
-| Primary | `WpythonW/ast-fakeaudio-detector` | AST (spectrogram ViT) | ~344 MB | check at load |
+| Primary | `MattyB95/AST-ASVspoof5-Synthetic-Voice-Detection` | AST (spectrogram ViT) | ~344 MB | BSD-3-Clause |
 | Cross-check | `MelodyMachine/Deepfake-audio-detection-V2` | wav2vec2 | ~378 MB | Apache-2.0 |
+
+The AST model reports 0.833 accuracy, 0.889 F1, 0.921 precision, and **0.859 recall** on
+ASVspoof5 validation. Read the recall first: it misses roughly one spoof in seven on the
+data it was trained for, and out-of-distribution it will be worse. That is the honest
+reason Stage 1 gives the neural layer only 0.55 of the weight.
+
+An earlier draft of this document specified `WpythonW/ast-fakeaudio-detector`, which
+claims a higher 0.971 F1. It is **gated behind manual approval by its author** and cannot
+be downloaded without it, so it is unusable for us. Do not reinstate it. The replacement
+is trained on ASVspoof5, the 2024 challenge set, rather than the 2019 data behind most
+open detectors, so the lower headline number is measured on newer and more relevant
+attacks.
+
+**The two models label their classes in opposite orders**: the AST model is
+`{0: Bonafide, 1: Spoof}` and the wav2vec2 model is `{0: fake, 1: real}`. Neither order is
+hardcoded anywhere; both are resolved from `config.id2label` as described below. This is
+not a trivia note — hardcoding either one would invert the other.
 
 Both are loaded via:
 
@@ -300,9 +317,14 @@ it is gated behind `VOXSHIELD_ENABLE_CATEGORY`. It only labels; it never changes
 
 Every model the engine may load. No other model IDs are permitted.
 
+Before adding any model to this table, check `gated` on its Hugging Face API record
+(`https://huggingface.co/api/models/<id>`). A gated repo needs manual approval from its
+author and will fail to download in the demo environment, which is how the original
+Stage 1 primary had to be replaced.
+
 | Key | HF ID | Purpose | Default | Size |
 |---|---|---|---|---|
-| `ast` | `WpythonW/ast-fakeaudio-detector` | Stage 1 primary | on | ~344 MB |
+| `ast` | `MattyB95/AST-ASVspoof5-Synthetic-Voice-Detection` | Stage 1 primary | on | ~344 MB |
 | `w2v2` | `MelodyMachine/Deepfake-audio-detection-V2` | Stage 1 cross-check | on | ~378 MB |
 | `whisper` | `small` (via faster-whisper) | Stage 2 transcript | on | ~250 MB |
 | `silverguard` | `tanishqmudaliar/SilverGuard` | Stage 2 scam score | on | ~25 MB |

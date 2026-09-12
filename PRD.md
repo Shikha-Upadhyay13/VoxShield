@@ -264,10 +264,16 @@ Two models with **different architectures**, so their errors are less correlated
 
 | Role | Model | Arch |
 |---|---|---|
-| Primary | `WpythonW/ast-fakeaudio-detector` | AST (spectrogram transformer) |
+| Primary | `MattyB95/AST-ASVspoof5-Synthetic-Voice-Detection` | AST (spectrogram transformer) |
 | Cross-check | `MelodyMachine/Deepfake-audio-detection-V2` | wav2vec2 (waveform SSL) |
 
 Both load with plain `transformers`, run on CPU, need no `fairseq`, and install on Windows.
+They also label their classes in opposite orders (`0=Bonafide` vs `0=fake`), so neither
+order is hardcoded; both are read from `config.id2label` at load time.
+
+The AST model reports 0.859 recall on ASVspoof5 validation, meaning it misses about one
+spoof in seven on its own training distribution. That is the reason the neural layer
+carries only 0.55 of the Stage 1 weight instead of standing alone.
 When they disagree by more than 0.5, confidence drops and DSP dominates rather than
 averaging two contradictory opinions into false certainty.
 
@@ -532,7 +538,7 @@ gRPC, signed webhooks, official JS/Python SDKs, telecom SIP/RTP ingest.
 | DSP | `numpy` + `scipy` only (no librosa — own autocorrelation F0) |
 | Audio decode | `soundfile` for wav/flac; **PyAV** for webm/opus from the browser, and mp3/m4a. No `ffmpeg` binary required — it is not installed on the demo laptop |
 | STT | `faster-whisper`, `small`, `compute_type="int8"`, CPU |
-| Stage 1 neural | `WpythonW/ast-fakeaudio-detector` + `MelodyMachine/Deepfake-audio-detection-V2` (plain `transformers`, CPU, no fairseq) |
+| Stage 1 neural | `MattyB95/AST-ASVspoof5-Synthetic-Voice-Detection` + `MelodyMachine/Deepfake-audio-detection-V2` (plain `transformers`, CPU, no fairseq) |
 | Stage 2 classifier | `tanishqmudaliar/SilverGuard` (MIT, MobileBERT ONNX, `onnxruntime`) |
 | Realtime | WebSocket (FastAPI WebSocket) |
 | State (prototype) | In-memory + JSON file for incidents; no cloud DB required |

@@ -36,7 +36,20 @@ MODEL_CACHE = API_ROOT / ".models"
 
 # The only model IDs the engine is permitted to load (ENGINE.md Section 5).
 MODEL_IDS = {
-    "ast": "WpythonW/ast-fakeaudio-detector",
+    # AST fine-tuned on ASVspoof5, the 2024 challenge set. Chosen over the
+    # otherwise-stronger WpythonW/ast-fakeaudio-detector because that repo is gated
+    # behind manual approval by its author, which we cannot depend on before a
+    # deadline. This one is BSD-3-Clause and openly downloadable.
+    #
+    # Its own card reports 0.833 accuracy and 0.859 recall on ASVspoof5 validation.
+    # That is lower than the gated model's claimed 0.971, but ASVspoof5 contains far
+    # newer attacks than the 2019 data most open detectors were trained on, so the
+    # lower number is measured against a harder and more relevant test. Note the
+    # recall: it misses roughly one spoof in seven even in-distribution, which is
+    # why Stage 1 does not rely on it alone.
+    "ast": "MattyB95/AST-ASVspoof5-Synthetic-Voice-Detection",
+    # Deliberately a different architecture, and note the opposite label order
+    # (0=fake here, 0=Bonafide for the AST model). Both are resolved from id2label.
     "w2v2": "MelodyMachine/Deepfake-audio-detection-V2",
     "silverguard": "tanishqmudaliar/SilverGuard",
     "category": "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
