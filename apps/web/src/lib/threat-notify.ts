@@ -46,7 +46,6 @@ export async function notifyThreat(input: {
       icon: "/icons/icon.svg",
       badge: "/icons/icon.svg",
       tag: "voxshield-threat",
-      renotify: true,
       data: { url: "/monitor" },
     });
     return;
