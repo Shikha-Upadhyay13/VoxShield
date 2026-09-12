@@ -6,12 +6,28 @@ Thumbs.db
 .venv/
 venv/
 __pycache__/
+*.py[cod]
 node_modules/
 .next/
 dist/
+out/
+
+# Audio never gets committed. Voices are personal data and the demo kit is team-only.
 *.wav
 *.mp3
+*.m4a
+*.flac
+*.ogg
+*.webm
+demo/audio/
+
+# Model weights (~1 GB for the full profile) are downloaded, never vendored.
 *.pt
 *.pth
 *.onnx
-demo/audio/
+*.safetensors
+*.bin
+apps/api/.models/
+
+# Calibration evidence is machine-specific; the committed calibration.json holds defaults.
+apps/api/calibration.local.json

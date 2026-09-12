@@ -172,28 +172,56 @@ Expected outcomes in this PRD are demo-measurable, not slogans. See Section 15.
 
 ## 8. Detection system design
 
-### 8.1 Why hybrid fusion
+> **Implementation contract:** [docs/ENGINE.md](docs/ENGINE.md) is the authoritative spec for
+> the engine — exact model IDs, signal formulas, thresholds, and the JSON response shape.
+> This section states the *design intent*. Where the two disagree on an implementation
+> detail, ENGINE.md wins. Do not implement the engine from this section alone.
 
-Classic AASIST-style models trained on ASVspoof 2019 often miss modern neural clones. A 1 GB wav2vec checkpoint may not load on the demo laptop. Over-the-air replay (phone speaker → room → laptop mic) adds channel distortion that digital-only detectors were not trained on.
+### 8.1 Two stages, two scores
 
-So v1 does **not** bet the live demo on one neural score. It fuses layers we can defend in a viva.
+Detection answers **two independent questions**, and keeps the answers separate:
+
+| Stage | Question | Output |
+|---|---|---|
+| **Stage 1** | Is this voice synthetic or a real human? | `authenticity.score` 0–100 |
+| **Stage 2** | Is this speech an attempt at fraud? | `fraud.score` 0–100 |
+
+They are never blended into a single number. The reason is the case that matters most to a
+bank: a **real human reading a scam script**. One merged score would dilute a 95 fraud
+signal with a 10 authenticity signal into a meaningless mid-band "review" and lose the
+attack entirely. Two scores plus an action matrix (Section 8.7) keeps that case visible.
+
+### 8.1a Why hybrid fusion
+
+Classic AASIST-style models trained on ASVspoof 2019 miss modern neural clones. Measured on
+the [Podonos 2026 benchmark](https://github.com/podonos/audio-dfd-benchmark) against modern
+commercial cloners: AASIST 48.2%, LCNN 50.0%, RawNet2 50.7%, Wav2Vec2 62.9%. Over-the-air
+replay (phone speaker → room → laptop mic) adds channel distortion those detectors never
+saw.
+
+So v1 does **not** bet the demo on one neural score. It combines a diverse neural pair with
+independent DSP evidence we can defend in a viva.
 
 ```
 Mic stream / file upload
         │
         ▼
-  Windowing (1–2 s, 50% overlap)
+  Sufficiency gate (>= 1 s voiced, else insufficient_audio)
         │
-        ├─► Layer 1  Acoustic / spectral DSP
-        ├─► Layer 2  Prosody / behavior
-        ├─► Layer 3  Optional neural anti-spoof (P1)
-        └─► Layer 4  Context / keywords (P1 STT)
-                │
-                ▼
-         Risk fusion (0–100)
-                │
-                ▼
-    UI gauge + alerts + playbooks
+        ├──────────────────────────────┐
+        ▼                              ▼
+  STAGE 1  synthetic?            STAGE 2  fraud?
+        ├─► Neural pair (AST + wav2vec2)      ├─► Whisper transcript
+        ├─► DSP / prosody signals             ├─► SilverGuard scam classifier
+        └─► Disfluency absence                ├─► Weighted lexicon
+                │                             └─► Amount extraction
+                ▼                                      │
+     authenticity.score 0–100                  fraud.score 0–100
+                └──────────────┬───────────────────────┘
+                               ▼
+                        Action matrix
+                               ▼
+              verdict + reasons + alerts + playbooks
 ```
 
 ### 8.2 Inputs
@@ -206,69 +234,105 @@ Mic stream / file upload
 
 Minimum speech for a first score: ~1.0 s of voiced audio. Silence and near-silence must return `insufficient_audio`, not a guess.
 
-### 8.3 Layer 1 — Acoustic / spectral (P0, always on)
+### 8.3 Stage 1a — DSP / prosody (P0, always on)
 
 Language-agnostic. This is how we cover Indian languages without a Hindi-only acoustic model.
+Exact formulas and weights: [ENGINE.md Section 3.2](docs/ENGINE.md).
 
-Extract at least:
+The signals, and what each one is testing:
 
-- MFCC mean / variance / skew (first 13–20 coefficients)
-- Spectral centroid, bandwidth, rolloff
-- High-frequency energy cutoff / vocoder brick-wall tell
-- Harmonic-to-noise ratio (HNR)
-- Jitter and shimmer (cycle-to-cycle instability; clones are often *too* stable or *unnaturally* unstable)
-- Residual / phase flatness or equivalent DSP proxy
+| Signal | Hypothesis |
+|---|---|
+| Pitch stability | Synthetic speech is monotone; F0 std-dev is low |
+| **Jitter** | Cycle-to-cycle F0 perturbation is near zero — human vocal folds are never that stable |
+| **Shimmer** | Cycle-to-cycle amplitude perturbation is near zero |
+| Pause regularity | TTS pause grids are metronomic; human gap durations vary |
+| HF cutoff | Neural vocoders leave a brick wall below ~7 kHz |
+| Spectral flatness | Residual is noise-like, or over-smoothed |
+| Breath | Most TTS omits inhalation between clauses |
 
-Implementation note: `librosa` + `scipy` + a small pitch tracker (e.g. `pyworld` or `librosa.pyin`). Keep this layer CPU-only and fast.
+Jitter and shimmer are the strongest signals on clean audio and the **weakest after
+phone-speaker replay**, because the replay channel adds its own perturbation. This is why
+the `replay/` calibration set in Section 13 is mandatory, not optional.
 
-### 8.4 Layer 2 — Prosody / behavior (P0)
+CPU-only, `numpy` + `scipy` only. No `librosa`, no `pyworld` — F0 is autocorrelation-based
+in our own code so we control latency and can explain it in a viva.
 
-Neural TTS is often too even. Humans micro-vary.
+### 8.4 Stage 1b — Neural pair (P0)
 
-- Pitch contour variance and range
-- Pause regularity (synthetic pause grids vs human irregularity)
-- Speaking-rate stability
-- Energy envelope variance
+Two models with **different architectures**, so their errors are less correlated:
 
-### 8.5 Layer 3 — Neural anti-spoof (P1, optional)
-
-Lightweight pretrained checkpoint only if it loads on the demo laptop (AASIST-L or a small wav2vec anti-spoof). If GPU/RAM is tight, disable this layer. Fusion must still work from Layers 1 + 2 + 4.
-
-Do not block Phase 3 exit on this layer.
-
-### 8.6 Layer 4 — Context (P0 story, P1 STT)
-
-- Call origin: unknown / spoofed / known contact (demo metadata)
-- First-time vs enrolled speaker
-- Transaction context: high-value transfer vs general inquiry (Operations)
-- Urgency / social-engineering keywords after Whisper-small multilingual (EN + HI first): e.g. “send money”, “UPI”, “OTP”, “don’t tell anyone”, “abhi bhejo”, “kisi ko mat batana”
-
-Whisper output is used for flags only. Do not persist full transcripts by default.
-
-### 8.7 Fusion and thresholds
-
-Each layer emits a 0–1 risk contribution and a short reason string.
-
-Default weights (tunable in Operations):
-
-| Layer | Default weight | Notes |
+| Role | Model | Arch |
 |---|---|---|
-| Acoustic / spectral | 0.40 | Always on |
-| Prosody | 0.30 | Always on |
-| Neural | 0.20 | 0.00 if model unloaded; remaining mass renormalized |
-| Context | 0.10 | Raises score; never the sole reason to hit High if audio is clean-genuine |
+| Primary | `WpythonW/ast-fakeaudio-detector` | AST (spectrogram transformer) |
+| Cross-check | `MelodyMachine/Deepfake-audio-detection-V2` | wav2vec2 (waveform SSL) |
 
-`score = 100 * clip(sum(weight_i * layer_i), 0, 1)`
+Both load with plain `transformers`, run on CPU, need no `fairseq`, and install on Windows.
+When they disagree by more than 0.5, confidence drops and DSP dominates rather than
+averaging two contradictory opinions into false certainty.
 
-Bands:
+`nii-yamagishilab/wav2vec-large-anti-deepfake` has better published numbers but needs
+`fairseq`, which does not build on Windows, and is non-commercial. Documented as a
+Linux-only upgrade; **never a Phase 3 exit dependency.**
 
-| Score | Band | Protect copy | Operations action |
-|---|---|---|---|
-| 0–39 | Genuine | “Voice looks consistent with a human speaker. Stay alert.” | Monitor |
-| 40–69 | Review | “Some synthetic patterns. Call them back on a saved number before you send money.” | Warn + suggest callback / MFA |
-| 70–100 | High risk | “This voice may be AI-generated. Do not transfer money or share OTPs.” | Hold + escalate |
+### 8.5 Stage 1c — Disfluency absence (P0)
 
-High-value transaction preset (Operations): Review starts at 30, High at 55.
+Count `umm / uh / ah / hmm / matlab / haan` in the transcript. Natural conversational
+speech has them; scripted TTS does not. Requires at least 25 words to judge, and is
+**corroborating evidence only** — a human reading aloud also has no disfluencies, so this
+signal can never be the sole basis for a high band.
+
+### 8.6 Stage 2 — Fraud detection (P0)
+
+Runs on the Whisper transcript, independent of Stage 1:
+
+- `tanishqmudaliar/SilverGuard` — MIT-licensed MobileBERT ONNX (24M params) already trained
+  on Indian scam archetypes: digital arrest, KYC freeze, OTP fraud, RBI/TRAI impersonation,
+  courier scams, investment fraud. Weight 0.45.
+- **Weighted lexicon** — six auditable categories: credentials, coercion, secrecy, urgency,
+  money, authority, in English and Hindi/Hinglish. Weight 0.40. Two or more categories is
+  the meaningful signal; a lone `money` hit is ordinary conversation.
+- **Amount extraction** — digits plus `hazaar / lakh / crore`, escalating by size. Weight
+  0.15. The figure is surfaced in the alert ("demanded ₹50,000"), which persuades a
+  non-technical victim far better than a score does.
+
+Context metadata (unknown number, first-time caller, high-value transaction) continues to
+feed the Operations view.
+
+Whisper output is used for scoring and display only. Do not persist full transcripts by
+default.
+
+### 8.7 Fusion, bands, and the action matrix
+
+Every signal emits a 0–1 suspicion and a short reason string. Signals that cannot be
+computed return `null` and their weight is redistributed — never substituted with a guess.
+
+**Stage 1 weights:** neural 0.55, DSP 0.30, disfluency 0.15.
+**Stage 2 weights:** classifier 0.45, lexicon 0.40, amount 0.15.
+
+Bands, per score (the two scores use different thresholds because the cost of a false
+positive differs):
+
+| Preset | Authenticity review / high | Fraud review / high |
+|---|---|---|
+| `standard` | 40 / 70 | 35 / 65 |
+| `high_value` | 30 / 55 | 25 / 50 |
+
+**The action matrix** turns the two scores into one decision:
+
+| Authenticity | Fraud | Verdict | Protect copy | Operations action |
+|---|---|---|---|---|
+| High | High | `critical` | “This voice may be AI-generated and is asking for money or codes. Do not send anything.” | Hold + escalate |
+| Low | High | `fraud_human` | “This caller is using scam tactics. Hang up and call back on a saved number.” | Hold + escalate |
+| High | Low | `synthetic_benign` | “This voice looks synthetic but is not asking for anything. Stay alert.” | Flag, monitor |
+| Review either | — | `review` | “Something is off. Call them back on a saved number before you send money.” | Warn + request MFA |
+| Low | Low | `clear` | “Voice looks consistent with a human speaker. Stay alert.” | Monitor |
+
+`fraud_human` is the row that makes VoxShield useful to a bank rather than a novelty: a
+live social engineer with a genuine voice is still an attack, and a single blended score
+would have hidden it.
+
+All thresholds live in `apps/api/calibration.json` and are overridable without code changes.
 
 ### 8.8 Cross-session voiceprint (P2)
 
@@ -305,16 +369,19 @@ Priority: **P0** must ship for a credible SIH demo. **P1** ships if Phase 3 is g
 
 | ID | Req | Priority | Phase |
 |---|---|---|---|
-| D1 | Layer 1 DSP features computed per window | P0 | 3 |
-| D2 | Layer 2 prosody features computed per window | P0 | 3 |
-| D3 | Fusion produces 0–100 score + band | P0 | 3 |
-| D4 | On held demo files, clone score ≥ 70 and genuine score ≤ 39, or a documented calibrated gap ≥ 30 points | P0 | 3 |
-| D5 | Live path uses the same fusion as upload | P0 | 3 |
+| D1 | Stage 1 DSP signals (pitch, jitter, shimmer, pauses, HF cutoff, flatness, breath) computed per window | P0 | 3 |
+| D2 | Stage 1 neural pair (AST + wav2vec2) scored per window, with disagreement reported | P0 | 3 |
+| D3 | **Two separate scores** returned — `authenticity` and `fraud` — never merged | P0 | 3 |
+| D4 | On our own clips, separation `min(clone ∪ replay) − max(real) ≥ 25` points | P0 | 3 |
+| D5 | Live path uses the same engine as upload | P0 | 3 |
 | D6 | Time-to-first-score ≤ 3 s after voiced audio begins (laptop, CPU) | P0 | 3 |
-| D7 | Per-layer scores and one-line reasons returned with every score | P0 | 3 |
-| D8 | Optional neural layer, skippable via config | P1 | 5 |
-| D9 | Keyword / urgency flags (EN + HI) | P1 | 5 |
-| D10 | Voiceprint compare against enrolled genuine vector | P2 | 5 |
+| D7 | Every signal returns value, suspicion, and a plain-English reason | P0 | 3 |
+| D8 | Neural layer skippable via profile; DSP-only still answers | P0 | 3 |
+| D9 | Stage 2: transcript + SilverGuard + lexicon + amount extraction (EN + HI) | P0 | 3 |
+| D10 | Action matrix derives `verdict`, including `fraud_human` for a real human running a scam | P0 | 3 |
+| D11 | Label-polarity verified during calibration so an inverted model cannot flip the verdict | P0 | 3 |
+| D12 | Scam category naming (zero-shot NLI), feature-flagged | P1 | 5 |
+| D13 | Voiceprint compare against enrolled genuine vector | P2 | 5 |
 
 ### 9.3 Alerts and playbooks
 
@@ -396,37 +463,58 @@ Table: time, mode, duration, final score, band, actions taken. Click → layer b
 
 Base URL (local): `http://127.0.0.1:8000`
 
+> The **exact, field-for-field response contract** is
+> [ENGINE.md Section 7](docs/ENGINE.md). The shape below is abridged for orientation.
+> `apps/web/src/lib/types.ts` must match ENGINE.md, not this section.
+
 ### 11.1 `GET /health`
 
 ```json
-{ "status": "ok", "model": { "dsp": true, "prosody": true, "neural": false } }
+{
+  "status": "ok",
+  "profile": "full",
+  "engine_version": "1.0",
+  "models": { "ast": true, "w2v2": true, "whisper": true, "silverguard": true }
+}
 ```
 
 ### 11.2 `POST /analyze`
 
-Multipart file or JSON with a demo clip id.
+Multipart `file`, with optional `preset`, `language`, and `context`.
 
-Response:
+Response — **two independent scores plus a derived verdict**:
 
 ```json
 {
-  "score": 82,
-  "band": "high",
-  "layers": {
-    "acoustic": { "score": 0.84, "reasons": ["vocoder-like high-frequency cutoff"] },
-    "prosody": { "score": 0.71, "reasons": ["unusually flat pitch variance"] },
-    "neural": { "score": null, "reasons": ["layer disabled"] },
-    "context": { "score": 0.40, "reasons": ["urgency keywords: send money"] }
+  "status": "ok",
+  "verdict": "critical",
+  "confidence": 0.81,
+  "authenticity": {
+    "score": 88, "band": "high", "label": "Likely AI-generated", "degraded": false,
+    "components": { "neural": { "score": 0.91 }, "dsp": { "score": 0.82 }, "disfluency": { "score": 0.90 } },
+    "signals": [
+      { "key": "jitter", "value": 0.21, "unit": "%", "suspicion": 0.93,
+        "reason": "Cycle-to-cycle pitch variation is far below the human range." }
+    ]
   },
-  "window_ms": 1600,
-  "retention": "features_only"
+  "fraud": {
+    "score": 91, "band": "high", "label": "Fraud indicators present",
+    "components": {
+      "classifier": { "score": 0.88 },
+      "lexicon": { "score": 0.93, "categories": ["credentials", "coercion"] },
+      "amount": { "score": 0.8, "detected_inr": 50000 }
+    }
+  },
+  "meta": { "window_ms": 3000, "latency_ms": 412, "retention": "features_only" }
 }
 ```
+
+Silence and near-silence return `{"status": "insufficient_audio"}` with **no scores at all**.
 
 ### 11.3 `WS /stream`
 
 Client sends binary PCM frames (16 kHz, mono, 16-bit) or JSON `{ "type": "pcm16", "data": "<base64>" }`.  
-Server sends the same score object as `/analyze`, plus `{ "t_ms": 4200, "partial": true }`.
+Server sends the same object as `/analyze`, plus `{ "t_ms": 4200, "partial": true }`.
 
 ### 11.4 Later (not v1)
 
@@ -440,13 +528,19 @@ gRPC, signed webhooks, official JS/Python SDKs, telecom SIP/RTP ingest.
 |---|---|
 | Frontend | Next.js (App Router), TypeScript, Tailwind |
 | Charts / audio viz | Lightweight canvas waveform; no heavy BI kit |
-| Backend | Python 3.11+, FastAPI, Uvicorn |
-| DSP | librosa, numpy, scipy |
-| Optional STT | faster-whisper or openai-whisper `small` |
-| Optional neural | AASIST-L or equivalent, feature-flagged |
-| Realtime | WebSocket (`websockets` / FastAPI WebSocket) |
+| Backend | Python 3.11.9, FastAPI, Uvicorn |
+| DSP | `numpy` + `scipy` only (no librosa — own autocorrelation F0) |
+| Audio decode | `soundfile` for wav/flac; **PyAV** for webm/opus from the browser, and mp3/m4a. No `ffmpeg` binary required — it is not installed on the demo laptop |
+| STT | `faster-whisper`, `small`, `compute_type="int8"`, CPU |
+| Stage 1 neural | `WpythonW/ast-fakeaudio-detector` + `MelodyMachine/Deepfake-audio-detection-V2` (plain `transformers`, CPU, no fairseq) |
+| Stage 2 classifier | `tanishqmudaliar/SilverGuard` (MIT, MobileBERT ONNX, `onnxruntime`) |
+| Realtime | WebSocket (FastAPI WebSocket) |
 | State (prototype) | In-memory + JSON file for incidents; no cloud DB required |
-| Demo clone | Coqui XTTS-v2 or OpenVoice, run locally by the team |
+| Demo clone | **noiz.ai** (free tier), generated by the team |
+| Hosting | Next.js on Vercel free tier; engine local via `uvicorn`. HF Docker Spaces are now paid, so free API hosting there is unavailable |
+
+Model weights cache to `apps/api/.models/` (gitignored). Full profile is ~1 GB;
+`lite` profile is ~450 MB; `dsp_only` needs no downloads at all.
 
 Repo layout (from Phase 1):
 
@@ -466,10 +560,24 @@ VoxShield/
 Purpose: show the invigilator the *real* problem with a teammate’s voice, then detect it.
 
 1. Record 10–15 seconds of one teammate in a quiet room, 16 kHz or 44.1 kHz WAV, no music, no crosstalk.
-2. Clone with **Coqui XTTS-v2** or **OpenVoice** (free, local). Same sentence content is fine; different content is better for honesty.
-3. Keep both files as `demo/audio/real_<name>.wav` and `demo/audio/clone_<name>.wav`.
-4. Do not commit multi-GB model weights. Do not commit a public clone UI.
-5. Live demo: play the clone from a phone speaker 20–40 cm from the laptop mic. If the hall is loud, use upload.
+2. Clone with **noiz.ai** (free tier). Same sentence content is fine; different content is better for honesty. At least one clone clip should read a scam script so Stage 2 has something to catch.
+3. File the clips into three folders:
+
+```
+demo/audio/real/     genuine recordings of the teammate     (>= 3 clips)
+demo/audio/clone/    noiz.ai clones, downloaded digitally   (>= 3 clips)
+demo/audio/replay/   clone played from a phone speaker into the laptop mic
+```
+
+4. **The `replay/` set is mandatory, not optional.** The live demo plays the clone through a
+   phone speaker 20–40 cm from the laptop mic. That channel band-limits the audio, adds room
+   reverb, and shifts every DSP signal — jitter and shimmer most of all. Thresholds
+   calibrated only on clean downloads will look perfect in testing and fail in the hall.
+5. Run `python calibrate.py` and record the real separation number in the README. If
+   separation is under 25 points, fix signals or clips — do not tune thresholds to hide it.
+6. `demo/audio/` is gitignored. Do not commit voices, model weights, or a public clone UI.
+7. Live demo: play the clone from a phone speaker 20–40 cm from the laptop mic. If the hall
+   is loud, use the upload path.
 
 We do **not** ship a product feature that clones third-party voices.
 
@@ -494,12 +602,19 @@ Backup order if time is cut: steps 3 (upload) → 4 → 5.
 | Metric | Target |
 |---|---|
 | Time-to-first-score after voiced audio | ≤ 3 s |
-| Genuine teammate file | score ≤ 39, or ≥ 30 points below clone |
-| Team XTTS/OpenVoice clone file | score ≥ 70, or ≥ 30 points above genuine |
-| Live clone replay | score in Review or High in a quiet room |
+| Genuine teammate clips | every clip in `genuine` authenticity band |
+| noiz.ai clone clips | every clip in `high` authenticity band |
+| Phone-speaker replay clips | every clip in `review` or `high` |
+| Separation | `min(clone ∪ replay) − max(real) ≥ 25` points |
+| Scam script | `fraud.score` in `high`, with the demanded amount extracted correctly |
+| Real human reading a scam script | `verdict` = `fraud_human`, not `clear` |
 | False guess on silence | never; return `insufficient_audio` |
 | Raw audio default | not written to disk |
 | Judge comprehension | can state “this voice may be fake” and one next action without a primer |
+
+These are measured by `python calibrate.py`, and **the number we quote publicly is whatever
+it reports on our own clips** — not the published benchmark figures of the underlying
+models. An honest 78% we can explain beats a borrowed 99% that collapses under a question.
 
 ---
 
@@ -507,11 +622,16 @@ Backup order if time is cut: steps 3 (upload) → 4 → 5.
 
 | Risk | Mitigation |
 |---|---|
-| Live replay evades digital-only detectors | DSP + prosody always on; upload safety net |
-| Modern TTS evades ASVspoof-2019 neural nets | Do not depend on Layer 3 for Phase 3 exit |
-| Demo laptop too weak for Whisper + neural | Feature-flag both; CPU DSP is the floor |
-| False alarm on a teammate with a headset / cold | Calibrate on *our* genuine files; silence gate |
+| **Zero-shot models miss our noiz.ai clone** (measured: free detectors score 48–63% on modern cloners) | Two diverse architectures + independent DSP + disfluency; calibrate on our own clips and find out early, not on stage |
+| Live replay evades digital-only detectors | DSP always on; mandatory `replay/` calibration set; upload safety net |
+| Replay channel weakens jitter/shimmer | Weighted among seven signals, never decisive alone |
+| Inverted model labels silently flip the verdict | `calibrate.py` verifies label polarity and fails loudly (D11) |
+| Demo laptop too weak for Whisper + neural | `lite` and `dsp_only` profiles; CPU DSP is the floor |
+| `fairseq` will not build on Windows | Best-published model (AntiDeepfake) excluded from the default path; never a Phase 3 dependency |
+| False alarm on a teammate with a headset / cold | Calibrate on *our* genuine files; sufficiency gate |
 | Hall noise during judging | File-upload path rehearsed first |
+| Python engine not running during demo | Web app degrades to the in-browser scorer, clearly labelled as fallback |
+| HF Docker Spaces now paid | Engine runs locally; on-device processing is a genuine privacy selling point |
 | Dual-use optics | No public cloner; kit stays in `demo/` |
 | Scope creep (blockchain, gRPC, SMS gateways) | Frozen behind Phase 3 exit |
 | Accidental commit of home-directory git | VoxShield is its own repo; never use `C:\Users\Shikha` as root |
@@ -578,5 +698,17 @@ Backup order if time is cut: steps 3 (upload) → 4 → 5.
 | Version | Date | Notes |
 |---|---|---|
 | 0.1 | 11 Sep 2026 | Phase 0 PRD. Stack, dual mode, hybrid detection, phases, demo script frozen. Blockchain deferred. |
+| 0.2 | 12 Sep 2026 | Phase 3. Detection reworked to **two independent scores** (authenticity + fraud) with an action matrix. Clone tool changed to noiz.ai. Exact models named. `librosa` dropped. Engine contract extracted to [docs/ENGINE.md](docs/ENGINE.md). |
 
 Changes to P0 requirements or Phase 3 exit criteria need a team decision, not a silent edit.
+
+### Where to look for what
+
+| Question | File |
+|---|---|
+| What is the product, who is it for, what ships when | This file |
+| Exact models, formulas, thresholds, JSON contract | [docs/ENGINE.md](docs/ENGINE.md) |
+| How to install and run it | [README.md](README.md) |
+
+If any two of these disagree about the engine, **ENGINE.md is correct** and the other is a
+bug to fix.

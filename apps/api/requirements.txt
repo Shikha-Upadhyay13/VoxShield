@@ -1,0 +1,22 @@
+# VoxShield detection engine - CPU only, no ffmpeg binary required.
+# Install with:
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+
+numpy==2.2.1
+scipy==1.15.0
+soundfile==0.13.0
+
+# PyAV decodes webm/opus from the browser MediaRecorder and mp3/m4a uploads,
+# which libsndfile cannot handle. Also used internally by faster-whisper.
+av==14.0.1
+
+torch==2.5.1
+transformers==4.48.0
+onnxruntime==1.20.1
+faster-whisper==1.1.1
+huggingface-hub==0.27.1

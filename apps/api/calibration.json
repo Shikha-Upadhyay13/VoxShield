@@ -1,0 +1,59 @@
+{
+  "_comment": "Thresholds and tuning for the VoxShield engine. See docs/ENGINE.md. Edit this file instead of code. calibrate.py --write updates the thresholds and model polarity blocks.",
+  "engine_version": "1.0",
+  "calibrated": false,
+  "calibrated_at": null,
+
+  "thresholds": {
+    "standard": {
+      "authenticity": { "review": 40, "high": 70 },
+      "fraud": { "review": 35, "high": 65 }
+    },
+    "high_value": {
+      "authenticity": { "review": 30, "high": 55 },
+      "fraud": { "review": 25, "high": 50 }
+    }
+  },
+
+  "gate": {
+    "min_duration_ms": 1000,
+    "min_rms": 0.008,
+    "min_voiced_ratio": 0.08
+  },
+
+  "stage1": {
+    "weights": { "neural": 0.55, "dsp": 0.3, "disfluency": 0.15 },
+    "neural_weights": { "ast": 0.64, "w2v2": 0.36 },
+    "disagreement_threshold": 0.5,
+    "signal_weights": {
+      "pitch_stability": 0.2,
+      "jitter": 0.18,
+      "shimmer": 0.12,
+      "pause_regularity": 0.18,
+      "hf_cutoff": 0.14,
+      "spectral_flatness": 0.1,
+      "breath": 0.08
+    }
+  },
+
+  "stage2": {
+    "weights": { "classifier": 0.45, "lexicon": 0.4, "amount": 0.15 },
+    "single_category_multiplier": 0.55,
+    "min_words_for_disfluency": 25
+  },
+
+  "models": {
+    "ast": { "fake_index": null },
+    "w2v2": { "fake_index": null },
+    "silverguard": { "scam_index": 1 }
+  },
+
+  "dsp": {
+    "frame_ms": 40,
+    "hop_ms": 10,
+    "f0_min_hz": 70,
+    "f0_max_hz": 400,
+    "voicing_threshold": 0.35,
+    "min_voiced_frames": 12
+  }
+}
