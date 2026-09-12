@@ -102,6 +102,22 @@ export default function ProtectPage() {
           ))}
         </div>
       </section>
+
+      {lastResult && (band === "high" || band === "review") ? (
+        <section className="card border-[var(--high)]/30 bg-[var(--high)]/5 p-6">
+          <div className="kicker band-high">Alert preview</div>
+          <h3 className="font-serif mt-3 text-2xl">SMS to your trusted contact</h3>
+          <p className="mt-3 rounded-xl border border-white/10 bg-black/30 p-4 font-mono text-xs leading-6 text-[var(--muted)]">
+            VoxShield: possible voice scam on an active call (score {lastResult.score}).
+            Do not send money or OTP. Call {TRUSTED_CONTACTS[0]?.name ?? "your contact"} back on
+            the saved number {TRUSTED_CONTACTS[0]?.number ?? ""}.
+          </p>
+          <p className="mt-3 text-xs text-[var(--faint)]">
+            Demo only — no SMS gateway is connected. Production would send this via your
+            carrier or host app notification channel.
+          </p>
+        </section>
+      ) : null}
     </div>
   );
 }
