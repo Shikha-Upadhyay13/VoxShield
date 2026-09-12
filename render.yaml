@@ -1,8 +1,12 @@
 # Render Blueprint — VoxShield detection engine
 # https://render.com/docs/blueprint-spec
 #
-# After deploy, point Vercel env NEXT_PUBLIC_VOXSHIELD_API at this service URL,
-# and ping GET /health every ~10 minutes (UptimeRobot) so free-tier sleep stays warm.
+# Free plan (~512 MB RAM) cannot hold VOXSHIELD_PROFILE=lite (~450 MB weights + Torch).
+# Use mobile (SilverGuard + whisper-tiny + DSP) on free; upgrade to Starter (1–2 GB)
+# and set VOXSHIELD_PROFILE=lite for AST authenticity.
+#
+# After deploy: set Vercel NEXT_PUBLIC_VOXSHIELD_API to this URL, and ping GET /health
+# every ~10 minutes (UptimeRobot or /api/keep-alive) so sleep does not drop live WS.
 
 services:
   - type: web
@@ -13,11 +17,11 @@ services:
     healthCheckPath: /health
     envVars:
       - key: VOXSHIELD_PROFILE
-        value: lite
+        value: mobile
       - key: HF_HUB_DISABLE_SYMLINKS_WARNING
         value: "1"
       - key: ALLOWED_ORIGINS
-        # Comma-separated. Add your production Vercel domain after first deploy.
+        # Comma-separated. Add your real Vercel domain after first deploy.
         value: http://localhost:3000,https://voxshield.vercel.app
       - key: PYTHONUNBUFFERED
         value: "1"
