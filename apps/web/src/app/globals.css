@@ -13,12 +13,12 @@
   --accent: #7ce8cc;
   --accent-2: #9bb7ff;
   --accent-dim: rgba(124, 232, 204, 0.14);
-  --genuine: #3ee09a;
-  --genuine-dim: rgba(62, 224, 154, 0.16);
-  --review: #f0c15a;
-  --review-dim: rgba(240, 193, 90, 0.16);
-  --high: #ff7a70;
-  --high-dim: rgba(255, 122, 112, 0.16);
+  --genuine: #22c55e;
+  --genuine-dim: rgba(34, 197, 94, 0.18);
+  --review: #f59e0b;
+  --review-dim: rgba(245, 158, 11, 0.18);
+  --high: #ef4444;
+  --high-dim: rgba(239, 68, 68, 0.18);
 }
 
 @theme inline {

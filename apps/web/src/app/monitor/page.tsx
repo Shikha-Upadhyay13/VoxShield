@@ -15,6 +15,7 @@ import { SpectrogramBars, Waveform } from "@/components/waveform";
 import { clsx } from "@/lib/format";
 import { engineToLegacy, isOk } from "@/lib/engine-client";
 import { useEngine } from "@/hooks/use-engine";
+import { useLiveCaptions } from "@/hooks/use-live-captions";
 import { useLiveStream } from "@/hooks/use-live-stream";
 import { useSession } from "@/store/session-provider";
 import type { EngineOk, EngineResponse } from "@/lib/types";
@@ -31,6 +32,7 @@ export default function MonitorPage() {
   const [result, setResult] = useState<EngineOk | null>(null);
   const [insufficient, setInsufficient] = useState<string | null>(null);
   const [language, setLanguage] = useState("");
+  const captions = useLiveCaptions(session.active, language);
 
   const handleResult = useCallback(
     (next: EngineResponse, tMs: number) => {
@@ -47,8 +49,6 @@ export default function MonitorPage() {
         });
         return;
       }
-      // Keep the last good score on screen during a quiet patch; only explain why
-      // this window was skipped.
       setInsufficient(next.reason);
       updateLive({
         result: engineToLegacy(next),
@@ -83,6 +83,7 @@ export default function MonitorPage() {
     setResult(null);
     setInsufficient(null);
     setNotice(null);
+    captions.clear();
     try {
       startSession("live", "Live call window");
       setPhase("listening");
@@ -106,39 +107,29 @@ export default function MonitorPage() {
     }
   }
 
-  const transcript = result?.fraud.transcript?.trim() || null;
-  const statusLine =
-    phase === "analysing"
-      ? "Analysing the last few seconds — transcription + both detectors on CPU. Keep talking; audio is still being captured."
-      : insufficient
-        ? insufficient
-        : session.active
-          ? "Listening to the live call window. Speak clearly for a couple of seconds."
-          : "Start the microphone to simulate an in-call permission grant.";
+  const liveWords = captions.transcript;
+  const engineWords = result?.fraud.transcript?.trim() || null;
+  const displayTranscript = liveWords || engineWords;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageIntro
         kicker="Live call path"
         title="Listen on the call, then decide."
-        body="This screen stands in for a host app (Truecaller, a bank dialler, a carrier). After permission, VoxShield scores the ongoing call in a rolling window — clone vs human, and scam vs normal speech — and can later cut the call when the verdict is critical."
+        body="After permission, VoxShield scores the ongoing call — clone vs human, scam vs normal speech — and shows what was heard as you speak."
       />
 
       {result ? (
         <VerdictBanner verdict={result.verdict} confidence={result.confidence} />
-      ) : (
-        <div className="frame rounded-xl border border-white/15 bg-white/5 p-4 text-sm text-[var(--muted)]">
-          {statusLine}
-        </div>
-      )}
+      ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[1.4fr_0.8fr]">
-        <section className="card frame p-5 sm:p-6">
+      <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+        <section className="card frame flex flex-col p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-medium">Live call audio</div>
+              <div className="text-sm font-medium">Live detection</div>
               <div className="text-xs text-[var(--faint)]">
-                Demo stand-in for the host app&apos;s call stream after the user allows detection.
+                Stand-in for a host app&apos;s call stream after the user allows detection.
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -167,7 +158,7 @@ export default function MonitorPage() {
                 disabled={busy}
                 className={clsx(
                   session.active
-                    ? "btn-ghost !border-[rgba(255,122,112,0.4)] !text-[var(--high)]"
+                    ? "btn-ghost !border-[rgba(239,68,68,0.45)] !text-[var(--high)]"
                     : "btn-primary",
                   "!py-2",
                 )}
@@ -189,7 +180,7 @@ export default function MonitorPage() {
             </div>
             {phase === "analysing" ? (
               <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-lg border border-[var(--accent)]/30 bg-black/70 px-3 py-2 text-[11px] text-[var(--accent)]">
-                Analysing… first result on this laptop often takes 10–20 seconds.
+                Engine analysing… captions above keep updating while you speak.
               </div>
             ) : null}
           </div>
@@ -205,6 +196,11 @@ export default function MonitorPage() {
             <div className="font-mono text-xs text-[var(--muted)]">
               {Math.round(session.inputLevel * 100)}
             </div>
+            <EngineBadge
+              source={live.usingFallback ? "browser-fallback" : "engine"}
+              profile={engine.health?.profile}
+              latencyMs={result?.meta.latency_ms}
+            />
           </div>
 
           {live.error ? <p className="mt-3 text-sm text-[var(--high)]">{live.error}</p> : null}
@@ -213,113 +209,123 @@ export default function MonitorPage() {
               {notice}
             </p>
           ) : null}
-          {result && insufficient ? (
-            <p className="mt-3 text-xs text-[var(--faint)]">Last quiet window: {insufficient}</p>
-          ) : null}
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">
-                Call context from the host app
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ["unknownNumber", "Unknown number"],
-                    ["firstTimeCaller", "First-time caller"],
-                    ["urgencyLanguage", "Flagged by analyst"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setContext({ [key]: !context[key] })}
-                    className={clsx(
-                      "rounded-full border px-3 py-1.5 text-xs",
-                      context[key]
-                        ? "border-[var(--accent)]/40 bg-[var(--accent-dim)] text-[var(--accent)]"
-                        : "border-[var(--line)] text-[var(--muted)]",
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
+          <div className="mt-5 rounded-xl border border-white/10 bg-black/25 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="kicker">Live transcript</div>
+              <div className="text-[11px] text-[var(--faint)]">
+                {captions.supported
+                  ? captions.liveLine
+                    ? "Listening…"
+                    : session.active
+                      ? "Speak — words appear here as you talk"
+                      : "Waiting for permission"
+                  : "Browser captions unavailable — engine transcript shows after each score"}
               </div>
             </div>
-            <EngineBadge
-              source={live.usingFallback ? "browser-fallback" : "engine"}
-              profile={engine.health?.profile}
-              latencyMs={result?.meta.latency_ms}
-            />
+            <p
+              className={clsx(
+                "mt-3 min-h-[4.5rem] font-serif text-xl leading-8",
+                displayTranscript ? "text-[var(--fg)]" : "text-[var(--muted)]",
+              )}
+            >
+              {displayTranscript ? (
+                <>
+                  <span>{captions.finalText || (!captions.liveLine ? displayTranscript : "")}</span>
+                  {captions.liveLine ? (
+                    <span className="text-[var(--accent)]">
+                      {captions.finalText ? " " : ""}
+                      {captions.liveLine}
+                    </span>
+                  ) : null}
+                  {!liveWords && engineWords ? <span>{engineWords}</span> : null}
+                </>
+              ) : session.active ? (
+                "…"
+              ) : (
+                "Grant live detection, then speak. Captions stream under the waveform."
+              )}
+            </p>
+            {engineWords && liveWords && engineWords !== liveWords ? (
+              <p className="mt-2 text-xs leading-5 text-[var(--faint)]">
+                Engine heard: <span className="text-[var(--muted)]">{engineWords}</span>
+              </p>
+            ) : null}
+            {result?.fraud.matched_terms.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {result.fraud.matched_terms.map((term) => (
+                  <span
+                    key={`${term.category}-${term.term}`}
+                    className="rounded-full border border-[var(--high)]/35 bg-[var(--high)]/15 px-2.5 py-1 text-[11px] text-[var(--high)]"
+                  >
+                    {term.term}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-5">
+            <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              Call context from the host app
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["unknownNumber", "Unknown number"],
+                  ["firstTimeCaller", "First-time caller"],
+                  ["urgencyLanguage", "Flagged by analyst"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setContext({ [key]: !context[key] })}
+                  className={clsx(
+                    "rounded-full border px-3 py-1.5 text-xs",
+                    context[key]
+                      ? "border-[var(--accent)]/40 bg-[var(--accent-dim)] text-[var(--accent)]"
+                      : "border-[var(--line)] text-[var(--muted)]",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
-        <aside className="card panel-glow flex flex-col items-center gap-5 p-6">
+        <aside className="card panel-glow flex flex-col items-center justify-center gap-8 p-6">
           <div className="flex flex-col items-center">
             <RiskRing
+              title="AI voice"
               score={result?.authenticity.score ?? 0}
               band={result ? result.authenticity.band : "insufficient"}
-              size={168}
+              size={180}
             />
-            <div className="mt-2 text-center">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--faint)]">
-                AI voice
-              </div>
-              <div className="text-xs text-[var(--muted)]">
-                {result?.authenticity.label ?? "Waiting for speech"}
-              </div>
-            </div>
+            <p className="mt-2 max-w-[14rem] text-center text-[11px] leading-4 text-[var(--faint)]">
+              <span className="text-[var(--genuine)]">Green</span> = sounds human ·{" "}
+              <span className="text-[var(--high)]">Red</span> = sounds synthetic
+            </p>
           </div>
           <div className="h-px w-full bg-white/8" />
           <div className="flex flex-col items-center">
             <RiskRing
+              title="Fraud"
               score={result?.fraud.score ?? 0}
               band={result ? result.fraud.band : "insufficient"}
-              size={168}
+              size={180}
             />
-            <div className="mt-2 text-center">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--faint)]">
-                Fraud content
-              </div>
-              <div className="text-xs text-[var(--muted)]">
-                {result?.fraud.label ?? "Waiting for words"}
-              </div>
-            </div>
+            <p className="mt-2 max-w-[14rem] text-center text-[11px] leading-4 text-[var(--faint)]">
+              <span className="text-[var(--genuine)]">Green</span> = safe words ·{" "}
+              <span className="text-[var(--high)]">Red</span> = scam / fraud language
+            </p>
           </div>
+          {insufficient && session.active ? (
+            <p className="text-center text-[11px] text-[var(--faint)]">{insufficient}</p>
+          ) : null}
         </aside>
       </div>
-
-      <section className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="kicker">Live transcript</div>
-          <div className="text-[11px] text-[var(--faint)]">
-            What the engine heard in the latest window — the same text Stage 2 scores for fraud.
-          </div>
-        </div>
-        {transcript ? (
-          <p className="mt-3 font-serif text-xl leading-8 text-[var(--fg)]">{transcript}</p>
-        ) : (
-          <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-            {session.active
-              ? phase === "analysing"
-                ? "Transcribing the rolling window…"
-                : "Speak — the transcript appears after the first analysis finishes."
-              : "Grant live detection to start capturing what the caller says."}
-          </p>
-        )}
-        {result?.fraud.matched_terms.length ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {result.fraud.matched_terms.map((term) => (
-              <span
-                key={`${term.category}-${term.term}`}
-                className="rounded-full border border-[var(--high)]/30 bg-[var(--high)]/10 px-2.5 py-1 text-[11px] text-[var(--high)]"
-              >
-                {term.term}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="card p-5">

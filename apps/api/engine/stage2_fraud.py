@@ -183,7 +183,11 @@ class _Transcriber:
                 samples.astype(np.float32),
                 language=language,
                 beam_size=1 if streaming else 5,
-                vad_filter=True,
+                # Live laptop mics are quieter and choppier than file uploads. Silero VAD
+                # was deleting entire 1–3 s windows (see stream logs: "removed 00:01.536 of
+                # 00:01.536"), which left Stage 2 with silence and the UI looking broken.
+                # Keep VAD for offline uploads; skip it on the live path.
+                vad_filter=not streaming,
                 condition_on_previous_text=False,
             )
             text = " ".join(segment.text.strip() for segment in segments).strip()

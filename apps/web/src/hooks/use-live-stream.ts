@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EngineStream, legacyToEngine } from "@/lib/engine-client";
 import { downsample } from "@/lib/audio";
 import { extractFeatures, scoreFromFeatures } from "@/lib/scoring";
@@ -34,16 +34,16 @@ interface Graph {
 
 const LOCAL_WINDOW_S = 1.8;
 const LOCAL_INTERVAL_MS = 1200;
+/** Soft boost so quiet laptop mics clear the engine's energy gate. */
+const INPUT_GAIN = 2.4;
 
 /**
  * Live microphone capture that streams to the Python engine.
  *
- * Audio is sent at the browser's native sample rate rather than downsampled first,
- * because the high-frequency ceiling signal needs headroom above 8 kHz to mean
- * anything. The engine downsamples for the models on its side.
- *
- * If the engine cannot be reached, capture continues and scoring falls back to the
- * in-browser scorer so the demo keeps moving. Fallback results are tagged as such.
+ * Echo cancellation and noise suppression are off on purpose for this demo path: on a
+ * laptop talking into its own mic they often erase the very speech we need to score
+ * (stream logs showed Whisper VAD deleting entire windows). Production hosts that already
+ * clean the call audio can leave their own DSP on.
  */
 export function useLiveStream() {
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
@@ -80,10 +80,17 @@ export function useLiveStream() {
       setUsingFallback(false);
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: true,
+          channelCount: 1,
+        },
       });
 
       const ctx = new AudioContext();
+      if (ctx.state === "suspended") await ctx.resume();
+
       const source = ctx.createMediaStreamSource(stream);
       const analyserNode = ctx.createAnalyser();
       analyserNode.fftSize = 2048;
@@ -102,7 +109,6 @@ export function useLiveStream() {
         lastLocalScoreAt: 0,
       };
 
-      // Try the engine first. If it is not there, keep capturing and score locally.
       const socket = new EngineStream(
         {
           sampleRate: ctx.sampleRate,
@@ -154,20 +160,25 @@ export function useLiveStream() {
         const opts = optionsRef.current;
         if (!opts) return;
 
+        // Soft-clip after gain so peaks do not wrap into noise.
+        const boosted = new Float32Array(input.length);
         let peak = 0;
-        for (let i = 0; i < input.length; i += 1) peak = Math.max(peak, Math.abs(input[i] ?? 0));
-        opts.onLevel(Math.min(1, peak * 3));
+        for (let i = 0; i < input.length; i += 1) {
+          const sample = Math.max(-1, Math.min(1, (input[i] ?? 0) * INPUT_GAIN));
+          boosted[i] = sample;
+          peak = Math.max(peak, Math.abs(sample));
+        }
+        opts.onLevel(Math.min(1, peak));
 
         const active = graphRef.current;
         if (!active) return;
 
         if (active.socket?.isOpen) {
-          active.socket.send(new Float32Array(input));
+          active.socket.send(boosted);
           return;
         }
 
-        // Fallback path: keep a rolling buffer and score in the browser.
-        active.localBuffer.push(new Float32Array(input));
+        active.localBuffer.push(boosted);
         if (active.localBuffer.length > 24) active.localBuffer.shift();
         const now = Date.now();
         if (now - active.lastLocalScoreAt < LOCAL_INTERVAL_MS) return;
@@ -175,8 +186,6 @@ export function useLiveStream() {
         scoreLocally(active);
       };
 
-      // Route through a silent gain node; connecting straight to the destination
-      // would feed the speakers back into the microphone.
       const mute = ctx.createGain();
       mute.gain.value = 0;
       source.connect(analyserNode);

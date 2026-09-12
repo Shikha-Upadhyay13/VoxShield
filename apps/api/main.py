@@ -211,6 +211,16 @@ class StreamSession:
         model_audio = resample_to(native, self.sample_rate, SAMPLE_RATE)
         return model_audio, native
 
+    def has_speech_energy(self) -> bool:
+        """Skip scoring when the trailing window is effectively silence."""
+        if self.buffer.size == 0 or not self.sample_rate:
+            return False
+        native = last_seconds(self.buffer, self.sample_rate, STREAM_WINDOW_S)
+        if native.size == 0:
+            return False
+        rms = float(np.sqrt(np.mean(np.square(native))))
+        return rms >= 0.004
+
 
 @app.websocket("/stream")
 async def stream(websocket: WebSocket) -> None:
@@ -266,6 +276,10 @@ async def stream(websocket: WebSocket) -> None:
 
             session.append(chunk)
             if session.should_score:
+                if not session.has_speech_energy():
+                    # Don't burn CPU (or spam the UI) on silence between phrases.
+                    session.samples_since_score = 0
+                    continue
                 # Score in the background so the receive loop keeps accepting audio.
                 # Blocking here made the mic look dead for 15+ seconds on CPU.
                 score_task = asyncio.create_task(_score_and_send(websocket, session))
