@@ -56,6 +56,10 @@ CATEGORY_TERMS: dict[str, list[str]] = {
         "fees", "fine", "penalty", "deposit", "wire", "account number", "ifsc",
         "gpay", "google pay", "phonepe", "phone pe", "paytm", "upi", "bank transfer",
         "neft", "imps", "rtgs", "refund", "processing fee",
+        # Hinglish send/transfer verbs. Without these, "50 hazaar bhej do" only fires
+        # the amount extractor and never the money category, so Stage 2 under-scores
+        # the classic family-emergency script.
+        "send", "send me", "bhej", "bhejo", "bhej do", "bhej dena", "transfer karo",
         "paisa", "paise", "paise bhejo", "rupaye", "rupees", "paise chahiye",
         "पैसा", "पैसे", "रुपये",
     ],
@@ -178,8 +182,13 @@ def score_lexicon(text: str, single_category_multiplier: float = 0.55) -> Lexico
     if not hit_categories:
         return LexiconHit(0.0, [], [])
 
-    total = sum(CATEGORY_WEIGHTS.values())
-    raw = sum(CATEGORY_WEIGHTS.get(c, 0.0) for c in hit_categories) / total
+    # Saturate around two heavy categories (credentials + coercion ≈ 1.95) or three
+    # mid-weight ones (secrecy + urgency + money = 2.15). Dividing by the sum of every
+    # category weight instead made even a four-category hit top out around 0.73, so the
+    # lexicon could never clear the high fraud band without the SMS classifier — and
+    # that classifier goes quiet on Hinglish speech transcripts with no DLT header.
+    saturation = 2.15
+    raw = sum(CATEGORY_WEIGHTS.get(c, 0.0) for c in hit_categories) / saturation
     if len(hit_categories) == 1:
         raw *= single_category_multiplier
     return LexiconHit(min(1.0, raw), hit_categories, matched)
@@ -221,10 +230,19 @@ def extract_amount(text: str) -> AmountHit:
         consider(_to_number(raw_value or ""), match.group(0))
 
     if best_amount is None:
+        credential_context = bool(
+            re.search(r"\b(otp|o t p|password|passcode|pin|verification code)\b", normalized)
+        )
         for match in _BARE_AMOUNT.finditer(normalized):
-            value = _to_number(match.group(1))
-            # Four digits could be a year or an OTP; only treat big numbers as money.
-            if value is not None and value >= 1000:
+            raw_digits = match.group(1)
+            value = _to_number(raw_digits)
+            # Bare 4–6 digit runs next to OTP/PIN language are codes, not rupees.
+            # "Your OTP is 456789" must not become a ₹4.5 lakh request.
+            if (
+                value is not None
+                and value >= 10_000
+                and not (credential_context and len(raw_digits) <= 6)
+            ):
                 consider(value, match.group(0))
 
     if best_amount is None:

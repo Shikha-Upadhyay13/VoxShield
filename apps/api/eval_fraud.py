@@ -169,12 +169,19 @@ def load_dataset() -> list[Row]:
     return []
 
 
-def evaluate(rows: list[Row], threshold: int) -> tuple[Metrics, list[tuple[Row, int]]]:
+def evaluate(
+    rows: list[Row],
+    threshold: int,
+    sender_header: str | None = None,
+) -> tuple[Metrics, list[tuple[Row, int]]]:
     metrics = Metrics()
     mistakes: list[tuple[Row, int]] = []
     for row in rows:
         # Stage 2 operates on a transcript, so feed the text in as one.
-        assessment = assess_fraud(Transcript(row.text, row.language or None, True))
+        assessment = assess_fraud(
+            Transcript(row.text, row.language or None, True),
+            sender_header=sender_header,
+        )
         score = int(round(100 * assessment.score))
         predicted = score >= threshold
         if predicted and row.is_scam:
@@ -197,7 +204,7 @@ def sweep(rows: list[Row]) -> None:
     print("-" * len(header))
     best = (0.0, 0)
     for threshold in range(20, 90, 5):
-        metrics, _ = evaluate(rows, threshold)
+        metrics, _ = evaluate(rows, threshold, sender_header="")
         print(
             f"{threshold:>7} {metrics.accuracy:>7.3f} {metrics.precision:>7.3f} "
             f"{metrics.recall:>7.3f} {metrics.f1:>7.3f}"
@@ -235,11 +242,12 @@ def main() -> int:
     threshold = args.threshold or int(settings.thresholds("standard", "fraud")["high"])
     print(f"VoxShield Stage 2 evaluation\n  profile:   {settings.profile}\n  threshold: {threshold}")
 
-    print("\nSmoke test (our own examples - wiring check, not a benchmark):")
+    print("\nSmoke test (call-script examples - wiring check, not a benchmark):")
     smoke_rows = [Row(text, is_scam) for text, is_scam in SMOKE_CASES]
-    smoke_metrics, smoke_mistakes = evaluate(smoke_rows, threshold)
+    # None → voice-call header. These scripts are what someone would say on a call.
+    smoke_metrics, smoke_mistakes = evaluate(smoke_rows, threshold, sender_header=None)
     for row in smoke_rows:
-        assessment = assess_fraud(Transcript(row.text, None, True))
+        assessment = assess_fraud(Transcript(row.text, None, True), sender_header=None)
         score = int(round(100 * assessment.score))
         flag = "SCAM" if score >= threshold else "ok  "
         expected = "SCAM" if row.is_scam else "ok  "
@@ -267,7 +275,8 @@ def main() -> int:
     print(f"  languages: {languages}")
     print(f"  scam: {sum(1 for r in rows if r.is_scam)}, legit: {sum(1 for r in rows if not r.is_scam)}")
 
-    metrics, mistakes = evaluate(rows, threshold)
+    # Empty header: SMS bodies with no DLT sender, matching how the messages are stored.
+    metrics, mistakes = evaluate(rows, threshold, sender_header="")
     report(metrics, f"{DATASET_REPO} @ threshold {threshold}")
 
     if mistakes:

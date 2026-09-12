@@ -260,9 +260,26 @@ with `onnxruntime`. Its training archetypes map directly onto SIH26104's threat 
 digital arrest, bank-freeze/KYC, OTP fraud, lottery, job scam, parcel/courier,
 RBI/TRAI/EPFO impersonation, investment and utility scams.
 
+Three integration details that matter, because getting them wrong silently zeros the
+layer:
+
+1. The ONNX output `threat_score` is **already a softmax probability**. Do not apply
+   sigmoid or softmax again — that maps a true 0.0 to 0.5 and collapses every score into
+   a useless mid-band.
+2. Tokenise with the `vocab.txt` and WordPiece logic shipped in the SilverGuard repo.
+   Hugging Face's BertTokenizer is close but not identical, and the mismatch was enough
+   to drive clear scam scripts to a threat score of 0.
+3. The model was trained with an optional TRAI DLT sender header (`HEADER [SEP] body`).
+   Voice transcripts have no DLT ID. We inject a synthetic raw-number header only when
+   the lexicon already looks suspicious; blindly prefixing every transcript made benign
+   "please send the notes" and bank OTP texts look like scams.
+
 It was trained on **SMS text**, not speech transcripts. Its score is therefore weighted at
 0.45 rather than being trusted outright, and the lexicon provides an independent,
-inspectable second opinion.
+inspectable second opinion. When the classifier returns a confident "ham" (< 0.25) on a
+multi-category script the lexicon scores ≥ 0.5, the fusion drops the classifier and
+renormalises over lexicon + amount — Hinglish speech is exactly where SilverGuard goes
+quiet.
 
 ### 4.3 Lexicon
 
@@ -276,10 +293,14 @@ repetition cannot inflate the score.
 | `coercion` | 0.95 | kill, kidnap, kidnapped, police, arrest, warrant, court case, fir, jail, giraftar, police case, jaan se |
 | `secrecy` | 0.80 | don't tell, do not tell, keep this between us, don't disconnect, stay on the line, kisi ko mat batana, phone mat rakho |
 | `urgency` | 0.70 | right now, immediately, within 10 minutes, last warning, emergency, abhi, jaldi, turant |
-| `money` | 0.65 | money, transfer, send money, payment, fees, fine, penalty, deposit, gpay, phonepe, paytm, paisa, paise bhejo |
+| `money` | 0.65 | money, transfer, send, bhej/bhejo/bhej do, payment, fees, gpay, phonepe, paytm, paisa, paise bhejo |
 | `authority` | 0.60 | cbi, income tax, customs, rbi, trai, bank manager, cyber cell, enforcement directorate |
 
-Category score = `sum(weights of hit categories) / sum(all weights)`, clamped to 1.0.
+Category score = `sum(weights of hit categories) / 2.15`, clamped to 1.0. The denominator
+is chosen so two heavy categories (credentials + coercion ≈ 1.95) or three mid-weight ones
+(secrecy + urgency + money = 2.15) saturate. Dividing by the sum of every category weight
+instead capped even a four-category hit around 0.73, so the lexicon could never clear the
+high fraud band without the SMS classifier.
 
 **Two or more categories is the meaningful signal.** A single `money` hit is ordinary
 conversation ("send me money for lunch"). `credentials + urgency + coercion` together is a
@@ -292,6 +313,8 @@ Regex over the transcript, in [apps/api/engine/lexicon.py](../apps/api/engine/le
 - Digit forms: `10000`, `10,000`, `₹10000`, `rs 10000`, `inr 10000`
 - Indian scale words: `50 hazaar`, `2 lakh`, `1.5 crore`, `5 thousand`
 - Multipliers: `thousand`/`hazaar` = 1e3, `lakh`/`lac` = 1e5, `crore` = 1e7
+- Bare numbers without a currency word must be ≥ ₹10,000, and 4–6 digit runs next to
+  OTP/PIN language are ignored so "Your OTP is 456789" does not become a ₹4.5 lakh request.
 
 Escalation bands (the largest amount found wins):
 
