@@ -159,7 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {FLAT.find((n) => n.href === pathname)?.label ?? "VoxShield"}
               </div>
               <div className="text-[11px] text-[var(--faint)]">
-                SIH26104 · {mode === "protect" ? "Family protection" : "Bank / enterprise ops"}
+                SIH26104 · {mode === "protect" ? "Personal protection" : "Bank / enterprise ops"}
               </div>
             </div>
           </div>

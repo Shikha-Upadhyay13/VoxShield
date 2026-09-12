@@ -56,8 +56,7 @@ export default function MonitorPage() {
   const [phase, setPhase] = useState<"idle" | "listening" | "analysing">("idle");
   const [result, setResult] = useState<EngineOk | null>(null);
   const [insufficient, setInsufficient] = useState<string | null>(null);
-  const [language, setLanguage] = useState("");
-  const captions = useLiveCaptions(session.active, language);
+  const captions = useLiveCaptions(session.active);
   const lastScoredText = useRef("");
 
   const handleResult = useCallback(
@@ -108,13 +107,13 @@ export default function MonitorPage() {
     live.updateOptions({
       context,
       preset,
-      language: language || null,
+      language: null,
       onLevel: (inputLevel) => updateLive({ inputLevel }),
       onResult: handleResult,
       onNotice: setNotice,
       onAnalysing: () => setPhase("analysing"),
     });
-  }, [context, preset, language, live.updateOptions, updateLive, handleResult]);
+  }, [context, preset, live.updateOptions, updateLive, handleResult]);
 
   // Score the live caption text for fraud as soon as enough words land.
   useEffect(() => {
@@ -174,7 +173,7 @@ export default function MonitorPage() {
       await live.start({
         context,
         preset,
-        language: language || null,
+        language: null,
         onLevel: (inputLevel) => updateLive({ inputLevel }),
         onResult: handleResult,
         onNotice: setNotice,
@@ -238,25 +237,6 @@ export default function MonitorPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-                Language
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  disabled={session.active}
-                  className="rounded-lg border border-white/12 bg-white/[0.03] px-2 py-1 text-xs disabled:opacity-50"
-                >
-                  <option value="" className="bg-[#0a0e14]">
-                    Auto
-                  </option>
-                  <option value="en" className="bg-[#0a0e14]">
-                    English
-                  </option>
-                  <option value="hi" className="bg-[#0a0e14]">
-                    Hindi
-                  </option>
-                </select>
-              </label>
               <button
                 type="button"
                 onClick={() => void freshRecording()}

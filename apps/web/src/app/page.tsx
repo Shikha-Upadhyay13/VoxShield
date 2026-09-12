@@ -151,10 +151,10 @@ export default function HomePage() {
         <div className="mt-10 grid gap-4 lg:grid-cols-2">
           <div className="card p-7">
             <div className="kicker">Protect</div>
-            <h2 className="font-serif mt-3 text-3xl">For the person who trusts the voice.</h2>
+            <h2 className="font-serif mt-3 text-3xl">For anyone who trusts the voice.</h2>
             <p className="mt-3 max-w-md text-sm leading-7 text-[var(--muted)]">
               Hang up. Call back on a saved number. Never UPI or OTP under pressure.
-              Written so a parent can follow it in thirty seconds.
+              Written so anyone can follow it in thirty seconds — not only families.
             </p>
             <Link href="/protect" className="mt-5 inline-flex text-sm text-[var(--accent)]">
               Open playbook

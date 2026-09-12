@@ -20,7 +20,7 @@ export default function ScenariosPage() {
       <div className="grid gap-5 lg:grid-cols-3">
         {SCENARIOS.map((s) => (
           <article key={s.id} className={clsx("card flex flex-col p-6", scenarioId === s.id && "panel-glow")}>
-            <div className="kicker">{s.mode === "protect" ? "Family" : "Institution"}</div>
+            <div className="kicker">{s.mode === "protect" ? "Personal" : "Institution"}</div>
             <h2 className="font-serif mt-3 text-2xl">{s.title}</h2>
             <p className="mt-1 text-xs text-[var(--faint)]">{s.victim}</p>
             <blockquote className="mt-5 rounded-2xl bg-black/25 px-4 py-3 text-sm italic leading-6 text-[var(--muted)]">

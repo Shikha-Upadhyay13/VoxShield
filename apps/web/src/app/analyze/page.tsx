@@ -11,12 +11,6 @@ import { useEngine } from "@/hooks/use-engine";
 import { useSession } from "@/store/session-provider";
 import type { EngineResponse } from "@/lib/types";
 
-const LANGUAGES = [
-  { value: "", label: "Auto-detect" },
-  { value: "en", label: "English" },
-  { value: "hi", label: "Hindi" },
-];
-
 export default function AnalyzePage() {
   const { context, preset, applyResult } = useSession();
   const engine = useEngine();
@@ -26,7 +20,6 @@ export default function AnalyzePage() {
   const [working, setWorking] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [language, setLanguage] = useState("");
   const [result, setResult] = useState<EngineResponse | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +50,7 @@ export default function AnalyzePage() {
       const outcome = await engine.analyzeFile(blob, name, {
         preset,
         context,
-        language: language || null,
+        language: null,
         decoded,
       });
 
@@ -142,20 +135,7 @@ export default function AnalyzePage() {
             <button type="button" onClick={() => inputRef.current?.click()} className="btn-primary">
               Choose file
             </button>
-            <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-              Language
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="rounded-lg border border-white/12 bg-white/[0.03] px-2 py-1 text-xs"
-              >
-                {LANGUAGES.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-[#0a0e14]">
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <p className="text-xs text-[var(--faint)]">Language is detected automatically</p>
           </div>
 
           <input

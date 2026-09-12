@@ -54,8 +54,8 @@ export default function GuidePage() {
         <div className="card p-6">
           <div className="kicker">Languages</div>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            DSP is language-agnostic. Context keywords start with English and Hindi. Accents are
-            not a separate model in v1 — they ride the same features.
+            Whisper auto-detects the spoken language. DSP is language-agnostic. The fraud
+            lexicon covers English and Hindi/Hinglish. Accents ride the same Stage 1 features.
           </p>
         </div>
       </section>

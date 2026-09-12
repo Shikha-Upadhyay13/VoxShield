@@ -10,7 +10,7 @@ const QUICK = [
   { href: "/monitor", title: "Live check", body: "Laptop mic · phone clone demo" },
   { href: "/analyze", title: "Upload clip", body: "Judge safety net" },
   { href: "/compare", title: "Side by side", body: "Human-like vs clone-like" },
-  { href: "/scenarios", title: "Load a story", body: "Family, CFO, official" },
+  { href: "/scenarios", title: "Load a story", body: "Personal, CFO, official" },
 ];
 
 export default function ConsolePage() {

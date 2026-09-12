@@ -17,7 +17,7 @@ const STEPS = [
   },
   {
     title: "Never UPI or OTP under pressure",
-    body: "Banks and family do not ask you to transfer while you are scared. If they do, it is the scam.",
+    body: "Banks and people you trust do not ask you to transfer while you are scared. If they do, it is the scam.",
   },
   {
     title: "Report it",
@@ -38,7 +38,7 @@ export default function ProtectPage() {
           style={{ background: "radial-gradient(circle, rgba(124,232,204,0.16), transparent 70%)" }}
         />
         <div className="kicker">
-          For families · last check {lastResult ? lastLabel : "none yet"}
+          Personal playbook · last check {lastResult ? lastLabel : "none yet"}
         </div>
         <h2 className="font-serif mt-4 max-w-3xl text-4xl leading-[1.15] sm:text-5xl">{copy.headline}</h2>
         <p className="mt-3 text-sm text-[var(--accent)]">{copy.hindi}</p>

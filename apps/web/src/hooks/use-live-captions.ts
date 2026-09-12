@@ -33,18 +33,16 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
 /**
  * Browser live captions while the engine does the heavier analysis.
  *
- * Chrome's Web Speech API gives word-by-word interim text as you speak. That is what
- * the user sees under the waveform. The Python engine still owns the fraud score; this
- * layer is for immediate feedback so the mic does not feel mute for 15 seconds.
+ * Chrome's Web Speech API gives word-by-word interim text as you speak. Language is
+ * not pinned here — the Python engine (faster-whisper) auto-detects on every score.
+ * Captions follow the device locale so we do not force English on a Hindi call.
  */
-export function useLiveCaptions(active: boolean, language: string) {
+export function useLiveCaptions(active: boolean) {
   const [liveLine, setLiveLine] = useState("");
   const [finalLines, setFinalLines] = useState<string[]>([]);
   const [supported, setSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const wantRef = useRef(false);
-
-  const langCode = language === "hi" ? "hi-IN" : language === "en" ? "en-IN" : "en-IN";
 
   const stop = useCallback(() => {
     wantRef.current = false;
@@ -75,7 +73,10 @@ export function useLiveCaptions(active: boolean, language: string) {
     const recognition = new Ctor();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = langCode;
+    // Prefer the OS/browser locale; never hard-pin en/hi — Whisper owns detection.
+    if (typeof navigator !== "undefined" && navigator.language) {
+      recognition.lang = navigator.language;
+    }
 
     recognition.onresult = (event) => {
       let interim = "";
@@ -116,7 +117,7 @@ export function useLiveCaptions(active: boolean, language: string) {
     } catch {
       setSupported(false);
     }
-  }, [langCode, stop]);
+  }, [stop]);
 
   useEffect(() => {
     if (active) {
