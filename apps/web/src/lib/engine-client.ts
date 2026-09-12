@@ -92,6 +92,41 @@ export async function analyzeBlob(
   }, options.timeoutMs ?? 120_000);
 }
 
+/**
+ * Score fraud from live captions / transcript text alone.
+ *
+ * Browser captions are immediate; Whisper on CPU is not. The live monitor calls this
+ * as soon as words appear so the fraud ring can turn red on a spoken scam script.
+ */
+export async function scoreText(
+  text: string,
+  options: { preset?: ThresholdPreset; timeoutMs?: number } = {},
+): Promise<EngineOk> {
+  const form = new FormData();
+  form.append("text", text);
+  form.append("preset", options.preset ?? "standard");
+
+  return withTimeout(async (signal) => {
+    const response = await fetch(`${engineBaseUrl()}/score-text`, {
+      method: "POST",
+      body: form,
+      signal,
+    });
+    if (!response.ok) {
+      let detail = `Engine returned ${response.status}`;
+      try {
+        const body = (await response.json()) as { reason?: string };
+        if (body.reason) detail = body.reason;
+      } catch {
+        /* keep status */
+      }
+      throw new Error(detail);
+    }
+    const payload = (await response.json()) as EngineOk;
+    return { ...payload, source: "engine" };
+  }, options.timeoutMs ?? 20_000);
+}
+
 /* ---------------------------------------------------------------------------
  * Live streaming
  * ------------------------------------------------------------------------- */

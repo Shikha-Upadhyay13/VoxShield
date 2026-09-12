@@ -28,7 +28,7 @@ from .schemas import (
     FraudComponents,
     InsufficientOut,
     LexiconComponent,
-    MatchedTerm as MatchedTermOut,
+    MatchedTerm,
     Meta,
     NeuralComponent,
     ScoreComponent,
@@ -36,6 +36,7 @@ from .schemas import (
     Verdict,
 )
 from .signals import disfluency_signal, extract_signals, weighted_suspicion
+from .stage2_fraud import Transcript
 
 AUTHENTICITY_LABELS: dict[str, str] = {
     "genuine": "Consistent with a human speaker",
@@ -126,7 +127,15 @@ def analyze(
     started = time.perf_counter()
     audio_ms = int(1000 * samples.size / sample_rate) if sample_rate else 0
 
-    gate = check_sufficiency(samples, sample_rate, settings.gate)
+    gate_cfg = dict(settings.gate)
+    if streaming:
+        # Live laptop windows are short and quieter than file uploads. The default
+        # voiced-ratio gate was rejecting real speech and returning insufficient_audio
+        # while the UI showed captions of the same words — so fraud never ran.
+        gate_cfg["min_rms"] = min(float(gate_cfg.get("min_rms", 0.008)), 0.004)
+        gate_cfg["min_voiced_ratio"] = min(float(gate_cfg.get("min_voiced_ratio", 0.08)), 0.03)
+        gate_cfg["min_duration_ms"] = min(float(gate_cfg.get("min_duration_ms", 1000)), 800)
+    gate = check_sufficiency(samples, sample_rate, gate_cfg)
     if not gate.ok:
         return _insufficient(gate.reason, gate.duration_ms, started)
 
@@ -246,7 +255,7 @@ def analyze(
             ),
         ),
         matched_terms=[
-            MatchedTermOut(category=term.category, term=term.term)
+            MatchedTerm(category=term.category, term=term.term)
             for term in fraud_assessment.matched_terms
         ],
         transcript=transcript.text if (want_transcript and transcript.available) else None,
@@ -270,6 +279,84 @@ def analyze(
             engine_version=ENGINE_VERSION,
             t_ms=t_ms,
             partial=True if streaming else None,
+        ),
+    )
+
+
+def score_text(text: str, preset: str = "standard") -> AnalysisOut:
+    """Stage 2 only — score spoken/typed words without audio.
+
+    Used by the live monitor: browser captions arrive immediately, while Whisper on
+    CPU lags by 10–20 seconds. Scoring the caption text keeps the fraud ring honest
+    in real time. Authenticity is left at 0 (unknown) so a high fraud score surfaces
+    as ``fraud_human`` until the audio stage catches up.
+    """
+    started = time.perf_counter()
+    cleaned = (text or "").strip()
+    assessment = stage2_fraud.assess_fraud(Transcript(cleaned, None, bool(cleaned)))
+    fraud_score = int(round(100 * assessment.score))
+    auth_thresholds = settings.thresholds(preset, "authenticity")
+    fraud_thresholds = settings.thresholds(preset, "fraud")
+    authenticity_score = 0
+    authenticity_band = band_for(authenticity_score, auth_thresholds)
+    fraud_band = band_for(fraud_score, fraud_thresholds)
+    verdict = decide_verdict(
+        authenticity_score, fraud_score, auth_thresholds, fraud_thresholds
+    )
+    amount = assessment.amount
+
+    fraud = Fraud(
+        score=fraud_score,
+        band=fraud_band,
+        label=FRAUD_LABELS[fraud_band],
+        transcript_available=bool(cleaned),
+        components=FraudComponents(
+            classifier=ClassifierComponent(
+                score=assessment.classifier_score,
+                model=stage2_fraud.classifier_name(),
+            ),
+            lexicon=LexiconComponent(
+                score=assessment.lexicon.score,
+                categories=assessment.lexicon.categories,
+            ),
+            amount=AmountComponent(
+                score=amount.score,
+                detected_inr=amount.amount_inr,
+                raw=amount.raw,
+            ),
+        ),
+        matched_terms=[
+            MatchedTerm(category=term.category, term=term.term)
+            for term in assessment.matched_terms
+        ],
+        transcript=cleaned or None,
+    )
+
+    authenticity = Authenticity(
+        score=authenticity_score,
+        band=authenticity_band,
+        label="Voice not scored in this text-only pass",
+        components=AuthenticityComponents(
+            neural=NeuralComponent(),
+            dsp=ScoreComponent(),
+            disfluency=ScoreComponent(),
+        ),
+        signals=[],
+        degraded=True,
+        notes=["Text-only fraud score from live captions / transcript."],
+    )
+
+    return AnalysisOut(
+        verdict=verdict,
+        confidence=0.55 if cleaned else 0.1,
+        authenticity=authenticity,
+        fraud=fraud,
+        meta=Meta(
+            audio_ms=0,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            profile=settings.profile,
+            engine_version=ENGINE_VERSION,
+            partial=True,
         ),
     )
 

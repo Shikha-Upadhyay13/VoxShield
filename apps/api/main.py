@@ -110,7 +110,13 @@ async def root() -> dict[str, Any]:
         "name": "VoxShield Detection Engine",
         "version": ENGINE_VERSION,
         "contract": "docs/ENGINE.md",
-        "endpoints": ["GET /health", "POST /analyze", "WS /stream"],
+        "endpoints": [
+            "GET /health",
+            "POST /analyze",
+            "POST /score-text",
+            "WS /stream",
+            "WS /ws/call-stream/{call_id}",
+        ],
     }
 
 
@@ -158,6 +164,29 @@ async def analyze(
         None,
         bool(want_transcript),
     )
+    return JSONResponse(result.model_dump())
+
+
+@app.post("/score-text")
+async def score_text(
+    text: str = Form(...),
+    preset: str = Form("standard"),
+) -> JSONResponse:
+    """Score fraud from transcript/captions alone — no audio required.
+
+    The live UI calls this as soon as browser captions update, so a spoken scam
+    script turns the fraud ring red without waiting for Whisper on CPU.
+    """
+    cleaned = (text or "").strip()
+    if len(cleaned) < 3:
+        return JSONResponse(
+            {"status": "error", "reason": "Need a few words to score."},
+            status_code=400,
+        )
+    result = await asyncio.to_thread(
+        fusion.score_text, cleaned, _normalize_preset(preset)
+    )
+    logger.info("Text score %s :: %s", fusion.summarize(result), cleaned[:80])
     return JSONResponse(result.model_dump())
 
 
@@ -224,6 +253,21 @@ class StreamSession:
 
 @app.websocket("/stream")
 async def stream(websocket: WebSocket) -> None:
+    await _run_stream_session(websocket)
+
+
+@app.websocket("/ws/call-stream/{call_id}")
+async def stream_call_alias(websocket: WebSocket, call_id: str) -> None:
+    """Alias for hosts that open ``/ws/call-stream/<id>`` instead of ``/stream``.
+
+    Some demo shells hit this path; without the alias the connection is rejected with
+    403 and the UI falls back to a scorer that cannot detect fraud at all.
+    """
+    logger.info("Stream alias opened for call_id=%s", call_id)
+    await _run_stream_session(websocket)
+
+
+async def _run_stream_session(websocket: WebSocket) -> None:
     await websocket.accept()
     session = StreamSession()
     score_task: asyncio.Task[None] | None = None
@@ -277,11 +321,8 @@ async def stream(websocket: WebSocket) -> None:
             session.append(chunk)
             if session.should_score:
                 if not session.has_speech_energy():
-                    # Don't burn CPU (or spam the UI) on silence between phrases.
                     session.samples_since_score = 0
                     continue
-                # Score in the background so the receive loop keeps accepting audio.
-                # Blocking here made the mic look dead for 15+ seconds on CPU.
                 score_task = asyncio.create_task(_score_and_send(websocket, session))
 
     except WebSocketDisconnect:

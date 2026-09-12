@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PageIntro } from "@/components/atmosphere";
 import {
   AuthenticityPanel,
@@ -13,12 +13,37 @@ import { RiskRing } from "@/components/risk-ring";
 import { ScoreTimeline } from "@/components/score-timeline";
 import { SpectrogramBars, Waveform } from "@/components/waveform";
 import { clsx } from "@/lib/format";
-import { engineToLegacy, isOk } from "@/lib/engine-client";
+import { engineToLegacy, isOk, scoreText } from "@/lib/engine-client";
 import { useEngine } from "@/hooks/use-engine";
 import { useLiveCaptions } from "@/hooks/use-live-captions";
 import { useLiveStream } from "@/hooks/use-live-stream";
 import { useSession } from "@/store/session-provider";
-import type { EngineOk, EngineResponse } from "@/lib/types";
+import type { EngineOk, EngineResponse, Verdict } from "@/lib/types";
+
+function mergeTextFraud(audio: EngineOk | null, textResult: EngineOk): EngineOk {
+  // Captions arrive first. Keep any real voice score we already have, and always
+  // take the stronger fraud reading so a spoken scam script turns the ring red.
+  if (!audio || audio.authenticity.degraded || audio.authenticity.signals.length === 0) {
+    return textResult;
+  }
+  const fraud =
+    textResult.fraud.score >= audio.fraud.score ? textResult.fraud : audio.fraud;
+  const verdict = pickVerdict(audio.authenticity.score, fraud.score);
+  return {
+    ...audio,
+    fraud,
+    verdict,
+    confidence: Math.max(audio.confidence, textResult.confidence),
+  };
+}
+
+function pickVerdict(auth: number, fraud: number): Verdict {
+  if (auth >= 70 && fraud >= 65) return "critical";
+  if (auth < 40 && fraud >= 65) return "fraud_human";
+  if (auth >= 70 && fraud < 35) return "synthetic_benign";
+  if (auth >= 40 || fraud >= 35) return "review";
+  return "clear";
+}
 
 export default function MonitorPage() {
   const { context, setContext, preset, session, startSession, updateLive, stopSession } =
@@ -33,12 +58,24 @@ export default function MonitorPage() {
   const [insufficient, setInsufficient] = useState<string | null>(null);
   const [language, setLanguage] = useState("");
   const captions = useLiveCaptions(session.active, language);
+  const lastScoredText = useRef("");
 
   const handleResult = useCallback(
     (next: EngineResponse, tMs: number) => {
       setPhase("listening");
       if (isOk(next)) {
-        setResult(next);
+        setResult((prev) => {
+          // Audio stage owns authenticity; keep a stronger caption-based fraud score
+          // if Whisper returned empty or weak fraud on a short window.
+          if (prev && prev.fraud.score > next.fraud.score && prev.fraud.transcript) {
+            return {
+              ...next,
+              fraud: prev.fraud,
+              verdict: pickVerdict(next.authenticity.score, prev.fraud.score),
+            };
+          }
+          return next;
+        });
         setInsufficient(null);
         updateLive({
           result: engineToLegacy(next),
@@ -71,6 +108,44 @@ export default function MonitorPage() {
       onAnalysing: () => setPhase("analysing"),
     });
   }, [context, preset, language, live.updateOptions, updateLive, handleResult]);
+
+  // Score the live caption text for fraud as soon as enough words land.
+  useEffect(() => {
+    if (!session.active) {
+      lastScoredText.current = "";
+      return;
+    }
+    const text = (captions.finalText || captions.transcript).trim();
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length < 4) return;
+    if (text === lastScoredText.current) return;
+
+    const timer = window.setTimeout(() => {
+      lastScoredText.current = text;
+      void scoreText(text, { preset })
+        .then((scored) => {
+          setResult((prev) => mergeTextFraud(prev, scored));
+          setPhase("listening");
+          updateLive({
+            result: engineToLegacy(scored),
+            insufficient: false,
+            label: "Live captions",
+            source: "live",
+          });
+        })
+        .catch(() => {
+          /* engine may be warming; audio path still runs */
+        });
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    captions.finalText,
+    captions.transcript,
+    session.active,
+    preset,
+    updateLive,
+  ]);
 
   async function toggle() {
     if (session.active) {
