@@ -1,0 +1,23 @@
+# Render Blueprint — VoxShield detection engine
+# https://render.com/docs/blueprint-spec
+#
+# After deploy, point Vercel env NEXT_PUBLIC_VOXSHIELD_API at this service URL,
+# and ping GET /health every ~10 minutes (UptimeRobot) so free-tier sleep stays warm.
+
+services:
+  - type: web
+    name: voxshield-api
+    runtime: docker
+    rootDir: apps/api
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: VOXSHIELD_PROFILE
+        value: lite
+      - key: HF_HUB_DISABLE_SYMLINKS_WARNING
+        value: "1"
+      - key: ALLOWED_ORIGINS
+        # Comma-separated. Add your production Vercel domain after first deploy.
+        value: http://localhost:3000,https://voxshield.vercel.app
+      - key: PYTHONUNBUFFERED
+        value: "1"
