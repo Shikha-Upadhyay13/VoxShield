@@ -49,13 +49,24 @@ takes a while. Weights are never committed.
 No ffmpeg needed — decoding goes through PyAV, which also handles the browser's
 webm/opus stream.
 
-Set `VOXSHIELD_PROFILE` to trade accuracy for size:
+Set `VOXSHIELD_PROFILE` to trade accuracy for size / RAM:
 
-| Profile | Size | What runs |
-|---|---|---|
-| `full` (default) | ~1 GB | Both neural detectors, whisper-small, scam classifier |
-| `lite` | ~450 MB | One detector, whisper-base, scam classifier |
-| `dsp_only` | 0 | Signal processing and lexicon only. No downloads. |
+| Profile | Size | RAM target | What runs |
+|---|---|---|---|
+| `full` (local default) | ~1 GB | laptop / large instance | AST + wav2vec2 + whisper-small + SilverGuard |
+| `lite` | ~450 MB | ≥1–2 GB always-on | AST + whisper-base + SilverGuard |
+| `mobile` | small | free Render (~512 MB) | SilverGuard + whisper-tiny + DSP (fraud-first) |
+| `dsp_only` | 0 | any | Signals + lexicon only |
+
+### Deploy (Vercel UI + Render API)
+
+1. **API (Render)** — connect the repo, use [`render.yaml`](./render.yaml) (Docker root `apps/api`). Free plan ships `VOXSHIELD_PROFILE=mobile`. For authenticity neural scores, upgrade RAM and set `lite`.
+2. Set `ALLOWED_ORIGINS` to your Vercel URL (comma-separated).
+3. **UI (Vercel)** — root directory `apps/web`, env `NEXT_PUBLIC_VOXSHIELD_API=https://YOUR-API.onrender.com`.
+4. **Keep warm** — ping `GET /health` every ~10 minutes (UptimeRobot or Vercel cron → `/api/keep-alive`). Free sleep drops WebSockets otherwise.
+5. On a phone: open the Vercel URL → Add to Home Screen → `/monitor` → Accept & protect.
+
+See [`apps/web/KEEPALIVE.md`](./apps/web/KEEPALIVE.md) for the warm-up contract.
 
 ### UI
 
