@@ -92,18 +92,22 @@ def _parse_label(raw: str) -> bool | None:
 def _rows_from_records(records: list[dict]) -> list[Row]:
     rows: list[Row] = []
     for record in records:
+        # Normalise keys: Excel/Hub CSVs sometimes ship a UTF-8 BOM on the first header.
+        normalised = {
+            str(key).lstrip("\ufeff").strip().lower(): value for key, value in record.items()
+        }
         text = ""
         for key in ("message", "text", "sms", "content", "body"):
-            if record.get(key):
-                text = str(record[key])
+            if normalised.get(key):
+                text = str(normalised[key])
                 break
         label = None
         for key in ("label", "class", "target", "is_scam"):
-            if key in record:
-                label = _parse_label(str(record[key]))
+            if key in normalised:
+                label = _parse_label(str(normalised[key]))
                 break
         if text and label is not None:
-            rows.append(Row(text, label, str(record.get("language", ""))))
+            rows.append(Row(text, label, str(normalised.get("language", ""))))
     return rows
 
 

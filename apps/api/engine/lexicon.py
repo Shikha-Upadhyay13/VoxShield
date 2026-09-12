@@ -36,6 +36,8 @@ CATEGORY_TERMS: dict[str, list[str]] = {
         "digital arrest", "cyber crime case", "non bailable", "raid",
         "giraftar", "girftar", "police case", "jaan se", "maar dunga", "jaan ka khatra",
         "पुलिस", "गिरफ्तार", "अपहरण",
+        # Courier / customs hold is a top Indian SMS scam archetype.
+        "customs", "parcel atka", "parcel hold", "contraband", "customs duty",
     ],
     "secrecy": [
         "don't tell", "dont tell", "do not tell", "tell no one", "keep this between us",
@@ -47,26 +49,25 @@ CATEGORY_TERMS: dict[str, list[str]] = {
     "urgency": [
         "right now", "immediately", "urgent", "urgently", "emergency", "last warning",
         "final warning", "within 10 minutes", "within 5 minutes", "before it's too late",
-        "no time", "hurry", "quickly", "at once",
-        "abhi", "abhi bhejo", "jaldi", "jaldi karo", "turant", "foran",
-        "अभी", "जल्दी", "तुरंत",
+        "no time", "hurry", "quickly", "at once", "please act now", "act now",
+        "click to proceed", "click here", "abhi", "abhi bhejo", "jaldi", "jaldi kare",
+        "jaldi karo", "turant", "foran", "अभी", "जल्दी", "तुरंत",
     ],
     "money": [
         "money", "transfer", "transfer money", "send money", "payment", "pay now",
         "fees", "fine", "penalty", "deposit", "wire", "account number", "ifsc",
         "gpay", "google pay", "phonepe", "phone pe", "paytm", "upi", "bank transfer",
         "neft", "imps", "rtgs", "refund", "processing fee",
-        # Hinglish send/transfer verbs. Without these, "50 hazaar bhej do" only fires
-        # the amount extractor and never the money category, so Stage 2 under-scores
-        # the classic family-emergency script.
         "send", "send me", "bhej", "bhejo", "bhej do", "bhej dena", "transfer karo",
         "paisa", "paise", "paise bhejo", "rupaye", "rupees", "paise chahiye",
-        "पैसा", "पैसे", "रुपये",
+        "loan", "instant loan", "loan approval", "pre-approved", "customs duty",
+        "release fee", "pay karke", "पैसा", "पैसे", "रुपये",
     ],
     "authority": [
         "cbi", "income tax", "customs", "rbi", "reserve bank", "trai", "epfo",
         "bank manager", "cyber cell", "cyber crime branch", "enforcement directorate",
         "narcotics", "courier company", "fedex", "police station", "government officer",
+        "account freeze", "account blocked", "atm card block", "card block",
         "सीबीआई", "आरबीआई", "आयकर",
     ],
 }

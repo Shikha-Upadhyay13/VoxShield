@@ -83,11 +83,27 @@ recordings — see [demo/audio/README.md](./demo/audio/README.md).
 
 ## Honesty about accuracy
 
-We have not measured accuracy on real voices yet, so this README quotes no accuracy
-number. When we do, it will be the number `calibrate.py` reports on our own clips.
+We have not measured Stage 1 accuracy on real voices yet, so this README quotes no
+authenticity number. When we do, it will be the number `calibrate.py` reports on our own
+clips — see [demo/audio/README.md](./demo/audio/README.md).
 
-The reason for that caution is measurable. Free open-source deepfake-audio detectors were
-trained on ASVspoof 2019 and perform close to chance against modern commercial voice
+Stage 2, against the public
+[`karanverma19/Indian_Multilingual_Scam_Message_Dataset`](https://huggingface.co/datasets/karanverma19/Indian_Multilingual_Scam_Message_Dataset)
+(120 Hindi/Hinglish/English SMS, 60 scam / 60 legit):
+
+| Threshold | Role in VoxShield | Precision | Recall | F1 |
+|---|---|---|---|---|
+| 35 | `fraud.band = review` | 0.85 | 0.77 | 0.81 |
+| 55 | best F1 on this set | 1.00 | 0.72 | 0.84 |
+| 65 | `fraud.band = high` | 1.00 | 0.53 | 0.70 |
+
+These are SMS messages, which is what SilverGuard was trained on. Live speech transcripts
+are messier (Whisper drops words, no punctuation), so expect somewhat lower recall in the
+product than the table shows. The smoke test on our own call scripts is 8/8 — that proves
+wiring, not accuracy.
+
+The reason for caution on Stage 1 is measurable. Free open-source deepfake-audio detectors
+were trained on ASVspoof 2019 and perform close to chance against modern commercial voice
 cloners — the [Podonos 2026 benchmark](https://github.com/podonos/audio-dfd-benchmark)
 puts AASIST at 48% accuracy and RawNet2 at 51%, which is coin-flip territory. Our own
 Stage 1 primary reports 0.859 recall on the data it was trained for, so it misses roughly
