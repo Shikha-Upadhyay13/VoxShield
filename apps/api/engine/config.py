@@ -34,6 +34,12 @@ REPO_ROOT = API_ROOT.parent.parent
 CALIBRATION_PATH = API_ROOT / "calibration.json"
 MODEL_CACHE = API_ROOT / ".models"
 
+# Windows without Developer Mode cannot make symlinks, so the Hugging Face cache prints
+# a multi-paragraph warning once per repo it downloads. The fallback it describes works
+# fine and only costs disk space, so the warning is noise that buries the messages we do
+# want to see. Set before any hub import so it takes effect.
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
 # The only model IDs the engine is permitted to load (ENGINE.md Section 5).
 MODEL_IDS = {
     # AST fine-tuned on ASVspoof5, the 2024 challenge set. Chosen over the
