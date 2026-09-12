@@ -22,7 +22,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from engine.config import MODEL_CACHE, settings
+from engine.config import MODEL_CACHE, enable_utf8_console, settings
 from engine.stage2_fraud import Transcript, assess_fraud
 
 DATASET_REPO = "karanverma19/Indian_Multilingual_Scam_Message_Dataset"
@@ -225,6 +225,7 @@ def report(metrics: Metrics, label: str) -> None:
 
 
 def main() -> int:
+    enable_utf8_console()
     parser = argparse.ArgumentParser(description="Evaluate the VoxShield fraud layer.")
     parser.add_argument("--threshold", type=int, default=None, help="Fraud score threshold (0-100).")
     parser.add_argument("--smoke", action="store_true", help="Run only the offline smoke test.")

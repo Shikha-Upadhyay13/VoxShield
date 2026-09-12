@@ -28,6 +28,7 @@ from engine.config import (
     CALIBRATION_PATH,
     REPO_ROOT,
     SAMPLE_RATE,
+    enable_utf8_console,
     load_calibration,
     save_calibration,
     settings,
@@ -239,6 +240,7 @@ def suggest_thresholds(max_real: int, min_fake: int) -> dict[str, int]:
 
 
 def main() -> int:
+    enable_utf8_console()
     parser = argparse.ArgumentParser(description="Calibrate VoxShield thresholds on our own clips.")
     parser.add_argument(
         "--dir",

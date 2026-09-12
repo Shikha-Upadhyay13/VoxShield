@@ -7,9 +7,27 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+
+def enable_utf8_console() -> None:
+    """Let the CLI scripts print Hindi text and the rupee sign on Windows.
+
+    The default Windows console encoding is cp1252, which cannot represent Devanagari
+    or the rupee sign, so printing a matched Hindi scam phrase raises UnicodeEncodeError
+    and kills the run. Characters the terminal font cannot draw become replacement marks,
+    which is a cosmetic problem rather than a crash.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
 
 API_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = API_ROOT.parent.parent

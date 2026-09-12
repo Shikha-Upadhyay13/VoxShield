@@ -48,6 +48,25 @@ class PitchTrack:
         return int(np.count_nonzero(self.voiced))
 
 
+def _adjacent_diffs(values: np.ndarray, voiced: np.ndarray) -> np.ndarray:
+    """Absolute differences between frames that are actually next to each other.
+
+    Gathering voiced frames into one array and calling np.diff on it would compare the
+    last frame before a pause against the first frame after it. That difference is an
+    artefact of the pause, not of the voice, and it is large. Clones pause more cleanly
+    and more often than people do, so the artefact inflates their measured jitter and
+    shimmer and hides the very stability we are looking for. Measured on the reference
+    tones, this inverted shimmer completely.
+    """
+    indices = np.flatnonzero(voiced)
+    if indices.size < 2:
+        return np.zeros(0)
+    adjacent = np.diff(indices) == 1
+    if not np.any(adjacent):
+        return np.zeros(0)
+    return np.abs(values[indices[1:]] - values[indices[:-1]])[adjacent]
+
+
 def _ramp_down(value: float, full: float, none: float) -> float:
     """1.0 at or below `full`, 0.0 at or above `none`, linear between.
 
@@ -175,12 +194,17 @@ def _jitter(track: PitchTrack, min_frames: int) -> SignalReading:
             "jitter", "Vocal jitter", None, "%", None,
             "Not enough voiced speech to measure jitter.",
         )
-    periods = 1.0 / np.maximum(voiced_f0, 1e-6)
-    mean_period = float(np.mean(periods))
+    mean_period = float(np.mean(1.0 / np.maximum(voiced_f0, 1e-6)))
     if mean_period <= 0:
         return SignalReading("jitter", "Vocal jitter", None, "%", None, "Pitch track was unusable.")
-    diffs = np.abs(np.diff(periods))
-    jitter_pct = float(100.0 * np.mean(diffs) / mean_period) if diffs.size else 0.0
+    all_periods = np.where(track.voiced, 1.0 / np.maximum(track.f0, 1e-6), 0.0)
+    diffs = _adjacent_diffs(all_periods, track.voiced)
+    if diffs.size == 0:
+        return SignalReading(
+            "jitter", "Vocal jitter", None, "%", None,
+            "Voiced speech is too fragmented to measure jitter.",
+        )
+    jitter_pct = float(100.0 * np.mean(diffs) / mean_period)
     suspicion = _ramp_down(jitter_pct, full=0.35, none=1.6)
     if suspicion > 0.6:
         reason = (
@@ -195,16 +219,22 @@ def _jitter(track: PitchTrack, min_frames: int) -> SignalReading:
 
 
 def _shimmer(track: PitchTrack, min_frames: int) -> SignalReading:
-    voiced_amp = track.amplitude[track.voiced] if track.voiced.size else np.zeros(0)
-    voiced_amp = voiced_amp[voiced_amp > 0]
-    if voiced_amp.size < min_frames:
+    # Require positive amplitude as well as voicing, so a mis-voiced silent frame
+    # cannot contribute a spurious full-scale swing.
+    usable = track.voiced & (track.amplitude > 0) if track.voiced.size else np.zeros(0, dtype=bool)
+    if int(np.count_nonzero(usable)) < min_frames:
         return SignalReading(
             "shimmer", "Amplitude shimmer", None, "%", None,
             "Not enough voiced speech to measure shimmer.",
         )
-    mean_amp = float(np.mean(voiced_amp))
-    diffs = np.abs(np.diff(voiced_amp))
-    shimmer_pct = float(100.0 * np.mean(diffs) / mean_amp) if diffs.size and mean_amp > 0 else 0.0
+    mean_amp = float(np.mean(track.amplitude[usable]))
+    diffs = _adjacent_diffs(track.amplitude, usable)
+    if diffs.size == 0 or mean_amp <= 0:
+        return SignalReading(
+            "shimmer", "Amplitude shimmer", None, "%", None,
+            "Voiced speech is too fragmented to measure shimmer.",
+        )
+    shimmer_pct = float(100.0 * np.mean(diffs) / mean_amp)
     suspicion = _ramp_down(shimmer_pct, full=1.5, none=6.0)
     if suspicion > 0.6:
         reason = (
@@ -376,12 +406,16 @@ def _breath(samples: np.ndarray, sample_rate: int, track: PitchTrack) -> SignalR
     zcr = np.abs(zcr)
 
     peak = float(np.percentile(energies, 95))
-    floor = float(np.percentile(energies, 10))
+    # Deliberately a low percentile. At the 10th, a recording that is roughly a fifth
+    # pauses puts the floor inside the pauses themselves, so the breaths raise the floor
+    # above their own level and become undetectable — which is precisely the case this
+    # signal exists to catch.
+    floor = float(np.percentile(energies, 3))
     if peak <= 0:
         return SignalReading("breath", "Breath sounds", None, "count/10s", None, "Audio is silent.")
 
     breathy = (
-        (energies > max(floor * 1.4, peak * 0.02))
+        (energies > max(floor * 1.6, peak * 0.01))
         & (energies < peak * 0.28)
         & (zcr > 0.14)
     )
