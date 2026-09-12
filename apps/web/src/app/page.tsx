@@ -79,17 +79,17 @@ export default function HomePage() {
               <span className="italic text-[var(--accent)]"> can be faked.</span>
             </h1>
             <p className="mt-5 max-w-lg text-base leading-8 text-[var(--muted)] sm:text-lg">
-              Not another upload app — call-protection middleware. Embed into Truecaller-class
-              diallers: after permission, score the live call for cloning and scam speech, alert
-              the user, and later cut the line when the verdict is critical.
+              Install VoxShield on your phone, accept an incoming call, and get live alerts when
+              the voice sounds cloned or the words sound like a scam — no Truecaller integration
+              required for the demo. Hosts can embed the same engine later.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link href="/monitor" className="btn-primary">
-                Simulate live call
+                Install & protect a call
                 <ArrowRight size={16} />
               </Link>
-              <Link href="/analyze" className="btn-ghost">
-                Offline clip (demo only)
+              <Link href="/protect" className="btn-ghost">
+                Open playbook
               </Link>
             </div>
             <div className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-[var(--line)] pt-6">
