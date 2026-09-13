@@ -138,11 +138,60 @@ async def root() -> dict[str, Any]:
         "contract": "docs/ENGINE.md",
         "endpoints": [
             "GET /health",
+            "GET /v1/capabilities",
             "POST /analyze",
             "POST /score-text",
             "WS /stream",
             "WS /ws/call-stream/{call_id}",
         ],
+    }
+
+
+@app.get("/v1/capabilities")
+async def capabilities() -> dict[str, Any]:
+    """Integrator discovery: profile, loaded models, languages, public contract."""
+    status = fusion.engine_status()
+    models = status["models"]
+    fraud_ready = bool(models.get("silverguard")) or settings.profile == "dsp_only"
+    return {
+        "name": "VoxShield Core",
+        "version": ENGINE_VERSION,
+        "profile": settings.profile,
+        "calibrated": bool(settings.calibration.get("calibrated")),
+        "models": models,
+        "languages": ["auto", "en", "hi"],
+        "scores": ["authenticity", "fraud"],
+        "verdicts": [
+            "clear",
+            "review",
+            "fraud_human",
+            "synthetic_benign",
+            "critical",
+            "insufficient_audio",
+        ],
+        "endpoints": [
+            "GET /health",
+            "GET /v1/capabilities",
+            "POST /analyze",
+            "POST /score-text",
+            "WS /stream",
+            "WS /ws/call-stream/{call_id}",
+        ],
+        "notes": [
+            *status["notes"],
+            "Two scores are never blended; hosts act on the verdict matrix.",
+            "Speaker verification / ECAPA is not part of Core v1.",
+            "gRPC SDKs are Phase later — REST + WebSocket for SIH.",
+        ],
+        "warming": _warming,
+        "ready": fraud_ready,
+        "recommended_host_actions": {
+            "clear": "Continue",
+            "review": "Soft warn / secondary check",
+            "fraud_human": "Warn, hold high-value action, request MFA or callback",
+            "synthetic_benign": "Flag synthetic voice; fraud content not elevated",
+            "critical": "Block / cut / escalate immediately",
+        },
     }
 
 

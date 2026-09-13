@@ -477,11 +477,26 @@ more than an unnecessary verification step. Every number here is overridable in
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /health` | Which models actually loaded, profile, engine version |
-| `POST /analyze` | Multipart `file`, optional `preset`, `language`, `context` |
-| `WS /stream` | Binary PCM16 frames (16 kHz mono) or `{"type":"pcm16","data":"<base64>"}` |
+| `GET /health` | Which models actually loaded, profile, engine version, `warming` / `ready` |
+| `GET /v1/capabilities` | Integrator discovery: profile, models, calibrated, languages, verdicts, recommended host actions |
+| `POST /analyze` | Multipart `file`, optional `preset`, `language`, `want_transcript` → authenticity + fraud + verdict |
+| `POST /score-text` | Form `text` + optional `preset` → fraud score from captions / transcript alone (no audio) |
+| `WS /stream` | Binary PCM16 frames after `{"type":"start","sample_rate":…}` |
+| `WS /ws/call-stream/{call_id}` | Alias of `/stream` for dialler-style hosts that bind a call id |
 
-`WS /stream` adds `"partial": true` and `"t_ms": <ms since session start>` to each frame.
+`WS /stream` (and the call-stream alias) add `"partial": true` and `"t_ms": <ms since session start>` to each scored frame.
+
+Recommended **host** actions per verdict (Core does not execute them):
+
+| Verdict | Typical host policy |
+|---|---|
+| `clear` | Continue |
+| `review` | Soft warn / secondary check |
+| `fraud_human` | Hold transfer, MFA, or callback on a known number |
+| `synthetic_benign` | Flag synthetic voice; content not elevated as scam |
+| `critical` | Block / cut / escalate immediately |
+
+Thin TypeScript client: [apps/web/src/sdk](../apps/web/src/sdk) — `analyze`, `scoreText`, `connectStream`, `fetchCapabilities`.
 
 ---
 
@@ -546,7 +561,7 @@ that we can explain beats a fake 99% that collapses under a judge's question.
 
 | File | Responsibility |
 |---|---|
-| [apps/api/main.py](../apps/api/main.py) | FastAPI app, the three endpoints, CORS, lifespan warmup |
+| [apps/api/main.py](../apps/api/main.py) | FastAPI app, Core endpoints, CORS, lifespan warmup |
 | [apps/api/engine/config.py](../apps/api/engine/config.py) | Env flags, profiles, calibration loading |
 | [apps/api/engine/schemas.py](../apps/api/engine/schemas.py) | Pydantic models mirroring Section 7 exactly |
 | [apps/api/engine/audio_io.py](../apps/api/engine/audio_io.py) | Decode, resample to 16 kHz mono, sufficiency gate |
@@ -557,7 +572,8 @@ that we can explain beats a fake 99% that collapses under a judge's question.
 | [apps/api/engine/fusion.py](../apps/api/engine/fusion.py) | Two scores, bands, action matrix, payload assembly |
 | [apps/api/calibrate.py](../apps/api/calibrate.py) | Section 8 harness |
 | [apps/api/eval_fraud.py](../apps/api/eval_fraud.py) | Stage 2 metrics on a public labelled dataset |
-| [apps/web/src/lib/engine-client.ts](../apps/web/src/lib/engine-client.ts) | Calls the API, falls back to the browser scorer |
+| [apps/web/src/sdk](../apps/web/src/sdk) | Thin TS SDK: analyze, scoreText, connectStream, capabilities |
+| [apps/web/src/lib/engine-client.ts](../apps/web/src/lib/engine-client.ts) | Re-exports SDK + browser-fallback helpers for the demo app |
 | [apps/web/src/lib/scoring.ts](../apps/web/src/lib/scoring.ts) | Browser fallback only — **not** the source of truth |
 
 ### 9.1 About the browser scorer
@@ -598,7 +614,12 @@ privacy story rather than weakening it: the audio never leaves the device.
 5. **Whisper errors propagate to Stage 2.** A missed word means a missed keyword. The
    lexicon is matched on normalized text to reduce this, and Stage 1 is unaffected.
 6. **No speaker identity verification yet.** The engine answers "is this synthetic", not
-   "is this actually Priya". Cross-session voiceprint is PRD Section 8.8, Phase 5.
+   "is this actually Priya". The web `/enroll` page is a **feature-only stub** — not
+   ECAPA-TDNN. Cross-session voiceprint remains PRD roadmap / Phase later.
+7. **We do not load classic AASIST weights.** Stage 1 neural is AST (ASVspoof5) + wav2vec2.
+   AASIST appears in docs only as a weak Podonos baseline (~48%), not as a loaded model.
+8. **Multilingual coverage is limited.** Whisper auto-detect + EN/HI lexicon — not full
+   dialect coverage across India.
 
 ---
 
