@@ -41,7 +41,7 @@ export default function CalibratePage() {
 
       <div className="flex flex-wrap gap-3">
         <Link href="/monitor" className="btn-primary">
-          Back to Call Shield
+          Back to call adapter
         </Link>
         <Link href="/guide" className="btn-ghost">
           How scoring works

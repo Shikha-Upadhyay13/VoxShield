@@ -214,7 +214,7 @@ export default function MonitorPage() {
         setNotice("Engine waking up… retrying health before the mic opens.");
         await engine.refresh();
       }
-      startSession("live", "Call Shield");
+      startSession("live", "Call adapter");
       setPhase("listening");
       await live.start({
         context,
@@ -227,7 +227,7 @@ export default function MonitorPage() {
       });
     } catch {
       live.setError(
-        "Microphone permission was denied. Call Shield needs mic access while this screen stays open.",
+        "Microphone permission was denied. The call adapter needs mic access while this screen stays open.",
       );
       stopSession();
       setPhase("ringing");
@@ -270,6 +270,12 @@ export default function MonitorPage() {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col justify-center gap-5 px-1">
         <InstallBanner />
+        <div className="rounded-xl border border-[var(--line)] bg-black/25 px-4 py-3 text-left text-xs leading-5 text-[var(--muted)]">
+          <span className="font-medium text-[var(--accent)]">Demo host: Call Adapter</span>
+          {" — "}
+          Mic audio streams to Core via <code className="font-mono text-[var(--text)]">WS /stream</code>.
+          This is not a dialler product; auto-cut is host policy simulated here.
+        </div>
         <section className="card frame relative overflow-hidden p-8 text-center sm:p-10">
           <div
             className="pointer-events-none absolute inset-0 opacity-80"
@@ -282,11 +288,11 @@ export default function MonitorPage() {
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10">
               <PhoneIncoming className="h-9 w-9 animate-pulse text-[var(--accent)]" />
             </div>
-            <div className="kicker">Incoming call</div>
+            <div className="kicker">Simulated incoming call</div>
             <h1 className="font-serif mt-3 text-3xl sm:text-4xl">Unknown number</h1>
             <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[var(--muted)]">
-              Accept to open Call Shield. Keep this screen in the foreground — the mic cannot
-              stay live in the background.
+              Accept to stream the laptop mic into VoxShield Core. Keep this screen in the
+              foreground — the mic cannot stay live in the background.
             </p>
             {warming ? (
               <p className="mt-4 text-xs text-[var(--review)]">Engine waking up…</p>
@@ -303,7 +309,7 @@ export default function MonitorPage() {
               className="btn-primary mt-8 w-full sm:w-auto"
             >
               <Shield size={16} />
-              {busy ? "Opening mic…" : "Accept & protect"}
+              {busy ? "Opening mic…" : "Accept & stream to Core"}
             </button>
           </div>
         </section>
@@ -316,9 +322,9 @@ export default function MonitorPage() {
       <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col justify-center gap-5">
         <section className="card frame border-[var(--high)]/50 bg-[var(--high)]/10 p-8 text-center sm:p-10">
           <PhoneOff className="mx-auto h-12 w-12 text-[var(--high)]" />
-          <h1 className="font-serif mt-5 text-3xl text-[var(--high)]">Call blocked</h1>
+          <h1 className="font-serif mt-5 text-3xl text-[var(--high)]">Host cut the call</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-            {notice || "VoxShield cut the line on a critical threat."}
+            {notice || "Adapter simulated auto-cut on a critical Core verdict — not a Core feature."}
           </p>
           <button type="button" className="btn-primary mt-8" onClick={() => setPhase("ringing")}>
             New call
@@ -332,6 +338,17 @@ export default function MonitorPage() {
     <div className="mx-auto max-w-6xl space-y-5">
       <InstallBanner />
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-black/25 px-4 py-3">
+        <div className="text-xs leading-5 text-[var(--muted)]">
+          <span className="font-medium text-[var(--accent)]">Demo host: Call Adapter</span>
+          {" · "}
+          mic → Core SDK / WebSocket · dual scores · host policy for warn / cut
+        </div>
+        <a href="/adapters/bank" className="text-[11px] text-[var(--accent)]">
+          Bank adapter →
+        </a>
+      </div>
+
       {threat ? (
         <div className="animate-in fade-in slide-in-from-top-2 rounded-xl border border-[var(--high)]/45 bg-[var(--high)]/15 px-4 py-3 text-sm text-[var(--high)]">
           Threat on this call — hang up and call back on a number you already saved.
@@ -344,9 +361,9 @@ export default function MonitorPage() {
         <section className="card frame flex flex-col p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-medium">Call Shield</div>
+              <div className="text-sm font-medium">Call adapter (demo)</div>
               <div className="text-xs text-[var(--faint)]">
-                Live authenticity + fraud while you stay on this screen.
+                Live authenticity + fraud from Core while you stay on this screen.
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -371,7 +388,7 @@ export default function MonitorPage() {
                   "!py-2",
                 )}
               >
-                {session.active ? "End call" : busy ? "Requesting mic…" : "Start shield"}
+                {session.active ? "End stream" : busy ? "Requesting mic…" : "Start stream"}
               </button>
             </div>
           </div>
@@ -524,6 +541,22 @@ export default function MonitorPage() {
           <AuthenticityPanel result={result} />
           <SignalTable signals={result.authenticity.signals} />
         </div>
+      ) : null}
+
+      {result ? (
+        <section className="card p-5">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              Raw Core payload
+            </div>
+            <div className="font-mono text-[10px] text-[var(--faint)]">
+              WS /stream · POST /score-text
+            </div>
+          </div>
+          <pre className="max-h-72 overflow-auto font-mono text-[11px] leading-5 text-[var(--muted)]">
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </section>
       ) : null}
     </div>
   );

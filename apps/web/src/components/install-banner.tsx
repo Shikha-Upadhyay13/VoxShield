@@ -9,7 +9,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 /**
- * Soft install banner for the Call Shield PWA.
+ * Soft install banner for the call-adapter demo PWA.
  * iOS: add to Home Screen from Share — notifications work best after install.
  */
 export function InstallBanner() {
@@ -44,11 +44,11 @@ export function InstallBanner() {
       <div className="flex items-start gap-3">
         <Download className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" />
         <div className="min-w-0 flex-1">
-          <div className="font-medium">Install VoxShield on this phone</div>
+          <div className="font-medium">Install call adapter demo</div>
           <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
             {isIos
-              ? "Share → Add to Home Screen. Keep the shield open during the call — notifications work best after install."
-              : "Add to your home screen for a full-screen Call Shield and threat alerts."}
+              ? "Share → Add to Home Screen. Keep the adapter open during the call — notifications work best after install."
+              : "Add to your home screen for a full-screen call adapter and threat alerts."}
           </p>
           {deferred ? (
             <button
