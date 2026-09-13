@@ -1,22 +1,32 @@
 # VoxShield
 
-**AI-powered real-time detection of voice-cloning impersonation attacks.**
+**Reusable AI voice-security core for real-time clone and scam-speech detection (SIH26104).**
 
-Smart India Hackathon 2026 · Problem Statement **SIH26104**
+Smart India Hackathon 2026 · Problem Statement **SIH26104**  
 Organization: AICTE — Cyber Security Cell · Theme: Blockchain & Cybersecurity
 
-VoxShield answers two questions about a voice on a call, and keeps the answers separate:
+## One Core, multiple adapters
 
-1. **Is this voice synthetic?** — a cloned voice
-2. **Are these words a scam?** — the intent behind them
+**VoxShield Core** (FastAPI) is the product: a privacy-preserving detection engine that
+answers two questions separately and exposes them over REST + WebSocket:
 
-Both matter, and neither substitutes for the other. A cloned voice reading a shopping
-list is harmless. A real human reading a scam script is the most common fraud there is,
-and a single blended risk score gets that case wrong — it averages a low authenticity
-score against a high fraud score into a meaningless "review". VoxShield reports two
-scores and combines them through an explicit action matrix instead.
+1. **Authenticity** — is this voice synthetic / cloned?
+2. **Fraud** — do the words look like a scam (OTP theft, coercion, transfers)?
 
-One engine, two faces: **Protect** (family) and **Operations** (bank / enterprise).
+Hosts never reimplement detection. They stream audio (or text) and receive scores + a
+verdict (`clear` / `review` / `fraud_human` / `synthetic_benign` / `critical`). A single
+blended risk number would hide the common case: a *real human* reading a scam script.
+
+The Next.js app is **not** the product. It ships:
+
+| Surface | Role |
+|---|---|
+| **Call adapter** (`/monitor`) | Demo dialler host — mic → `WS /stream` |
+| **Bank adapter** (`/adapters/bank`) | Demo financial host — transfer + Hold/MFA |
+| Protect / Operations UI | Host-response copy and curl examples |
+
+Same architecture later: Truecaller-class diallers, CCaaS, core banking — **adapters** on
+the same Core. We do not claim WhatsApp / Meet / Truecaller integration today.
 
 ## Documentation
 
@@ -116,9 +126,9 @@ wiring, not accuracy.
 The reason for caution on Stage 1 is measurable. Free open-source deepfake-audio detectors
 were trained on ASVspoof 2019 and perform close to chance against modern commercial voice
 cloners — the [Podonos 2026 benchmark](https://github.com/podonos/audio-dfd-benchmark)
-puts AASIST at 48% accuracy and RawNet2 at 51%, which is coin-flip territory. Our own
-Stage 1 primary reports 0.859 recall on the data it was trained for, so it misses roughly
-one spoof in seven even in-distribution.
+puts **AASIST at 48%** and RawNet2 at 51% (baselines we cite, **not** models we load). Our
+Stage 1 stack is **AST (ASVspoof5) + wav2vec2 + DSP**; the AST primary reports 0.859 recall
+on the data it was trained for, so it misses roughly one spoof in seven even in-distribution.
 
 VoxShield is designed around that limitation rather than pretending it away:
 
@@ -140,17 +150,19 @@ for the full list of known limitations.
 
 | Route | What you see |
 |---|---|
-| `/` | Landing |
+| `/` | Landing — **VoxShield Core** positioning |
+| `/guide` | Core contract, adapters, honest model map |
+| `/monitor` | **Call adapter (demo)** — mic → WS → dual scores |
+| `/adapters/bank` | **Bank adapter (demo)** — transfer + Hold/MFA |
+| `/operations` | Host-policy curl panel (not the bank product) |
 | `/console` | Command center |
-| `/monitor` | Live mic, dual gauges, signal breakdown |
 | `/analyze` | Upload, full detection report, engine status |
 | `/compare` | Human-like vs clone-like bench |
-| `/protect` | Family playbooks + red flags |
-| `/operations` | Analyst console, hold/MFA, API snippet |
+| `/protect` | Host playbook copy |
 | `/incidents` | Feature-only history |
 | `/scenarios` | Family / CFO / official stories |
-| `/enroll` | Feature-only voiceprint |
-| `/guide` | How scoring works |
+| `/enroll` | Feature-only voiceprint **stub** (not ECAPA) |
+| `/calibrate` | Calibration helper |
 
 ## Stack
 

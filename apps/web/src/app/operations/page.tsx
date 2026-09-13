@@ -32,9 +32,9 @@ export default function OperationsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageIntro
-        kicker="Analyst console"
-        title="Hold the transfer."
-        body="Same score as Protect, dressed for a bank desk: caller metadata, thresholds, and an action that leaves a trail."
+        kicker="Host policy · not Core"
+        title="What the bank would do."
+        body="Core returns authenticity, fraud, and a verdict. Hold / MFA / escalate / allow are host actions simulated here — they are not engine features. Prefer the dedicated bank adapter for the transfer story."
       />
       {result ? <AlertBanner band={result.band} /> : null}
 
@@ -160,18 +160,31 @@ export default function OperationsPage() {
 
         <div className="card p-5">
           <div className="mb-3 text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">
-            Integration · POST /analyze
+            Core contract · curl / WS
           </div>
           <pre className="overflow-x-auto font-mono text-[11px] leading-6 text-[var(--muted)]">
-{`curl -X POST http://127.0.0.1:8000/analyze \\
-  -H "Authorization: Bearer vx_demo_4f8c" \\
-  -F "file=@call.wav" \\
-  -F "context=high_value"`}
+{`# Capabilities + health
+curl -s http://127.0.0.1:8000/v1/capabilities
+curl -s http://127.0.0.1:8000/health
+
+# Clip analysis (two scores + verdict)
+curl -s -F file=@call.wav -F preset=high_value \\
+  http://127.0.0.1:8000/analyze
+
+# Live caption fraud (no audio)
+curl -s -F text="send OTP now" -F preset=high_value \\
+  http://127.0.0.1:8000/score-text
+
+# Live audio: WS /stream or /ws/call-stream/{id}
+# → PCM16 frames after {"type":"start","sample_rate":48000}`}
           </pre>
           <p className="mt-3 text-xs text-[var(--faint)]">
-            Same score object the console uses. Core banking is not connected in this prototype —
-            the contract is.
+            Same objects adapters use via the TS SDK. UI buttons above only simulate what a
+            host would do after the verdict — Core banking is not connected.
           </p>
+          <a href="/adapters/bank" className="mt-3 inline-block text-xs text-[var(--accent)]">
+            Open dedicated bank adapter →
+          </a>
         </div>
       </section>
     </div>

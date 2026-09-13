@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   Activity,
   BookOpen,
+  Building2,
   ClipboardCheck,
   Fingerprint,
   FolderOpen,
@@ -14,7 +15,7 @@ import {
   Info,
   LayoutDashboard,
   Menu,
-  Shield,
+  Phone,
   Upload,
   X,
 } from "lucide-react";
@@ -23,17 +24,21 @@ import { useSession } from "@/store/session-provider";
 import { BrandMark } from "./brand-mark";
 import { ModeSwitch } from "./mode-switch";
 
-/** Primary phone nav — Shield / Playbook / Desk */
+/** Primary phone nav — Core story + two adapters */
 const PRIMARY = [
-  { href: "/monitor", label: "Shield", icon: Shield },
-  { href: "/protect", label: "Playbook", icon: BookOpen },
-  { href: "/operations", label: "Desk", icon: LayoutDashboard },
+  { href: "/guide", label: "Core", icon: Info },
+  { href: "/monitor", label: "Call", icon: Phone },
+  { href: "/adapters/bank", label: "Bank", icon: Building2 },
 ];
 
 const NAV_GROUPS = [
   {
-    label: "Core",
-    items: PRIMARY,
+    label: "Product",
+    items: [
+      { href: "/guide", label: "VoxShield Core", icon: Info },
+      { href: "/monitor", label: "Call adapter (demo)", icon: Phone },
+      { href: "/adapters/bank", label: "Bank adapter (demo)", icon: Building2 },
+    ],
   },
   {
     label: "Detect",
@@ -44,8 +49,10 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "Respond",
+    label: "Host responses",
     items: [
+      { href: "/protect", label: "Playbook copy", icon: BookOpen },
+      { href: "/operations", label: "Ops / API curl", icon: LayoutDashboard },
       { href: "/incidents", label: "Incidents", icon: FolderOpen },
       { href: "/calibrate", label: "Calibrate", icon: ClipboardCheck },
     ],
@@ -54,8 +61,7 @@ const NAV_GROUPS = [
     label: "Library",
     items: [
       { href: "/scenarios", label: "Scenarios", icon: Activity },
-      { href: "/enroll", label: "Voiceprint", icon: Fingerprint },
-      { href: "/guide", label: "How it works", icon: Info },
+      { href: "/enroll", label: "Voiceprint stub", icon: Fingerprint },
     ],
   },
 ];
@@ -88,7 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span>
               <span className="block text-[15px] font-medium tracking-tight">VoxShield</span>
               <span className="block text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">
-                Call protection
+                Voice security core
               </span>
             </span>
           </Link>
@@ -166,7 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {FLAT.find((n) => n.href === pathname)?.label ?? "VoxShield"}
               </div>
               <div className="text-[11px] text-[var(--faint)]">
-                SIH26104 · {mode === "protect" ? "Personal protection" : "Bank / enterprise ops"}
+                SIH26104 · Core API · demo adapters
               </div>
             </div>
           </div>

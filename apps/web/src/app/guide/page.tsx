@@ -4,70 +4,83 @@ import Link from "next/link";
 import { PageIntro } from "@/components/atmosphere";
 
 const STEPS = [
-  ["Capture", "Mic stream or file. Silence is never scored as fake."],
-  ["Window", "1–2 second slices. First score aims under three seconds."],
-  ["Fuse", "Acoustic + prosody + optional neural + context."],
-  ["Act", "Protect playbook or Operations hold / MFA / escalate."],
+  ["Stream", "Host sends live audio (WS) or a clip (REST) into Core."],
+  ["Authenticity", "Neural + DSP: clone / synthetic likelihood (AST + wav2vec2 + prosody)."],
+  ["Fraud", "Scam-intent layer: SilverGuard + EN/HI lexicon + amounts."],
+  ["Verdict", "Action matrix — never a blended single score."],
+  ["Host acts", "Adapter warns, holds, MFA, or cuts — Core does not own the dialler."],
 ];
 
 export default function GuidePage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageIntro
-        kicker="For the viva"
-        title="How VoxShield decides."
-        body="Walk this page if a judge asks what is original work versus a wrapped model."
+        kicker="VoxShield Core"
+        title="The product is the API."
+        body="One reusable voice-security engine. Demo apps are adapters that prove integration — they are not the product."
       />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         {STEPS.map(([t, b], i) => (
           <div key={t} className="card p-5">
             <div className="font-mono text-xs text-[var(--accent)]">0{i + 1}</div>
-            <div className="font-serif mt-3 text-2xl">{t}</div>
+            <div className="font-serif mt-3 text-xl">{t}</div>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{b}</p>
           </div>
         ))}
       </div>
 
       <section className="card p-6 sm:p-8">
-        <div className="kicker">Host path</div>
-        <h2 className="font-serif mt-3 text-3xl">Truecaller-class later. Phone PWA now.</h2>
+        <div className="kicker">Contract</div>
+        <h2 className="font-serif mt-3 text-3xl">REST + WebSocket today. gRPC later.</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-          Today&apos;s demo is an installable Call Shield on the phone: mic permission, live
-          dual scores, notifications, and auto-cut on critical. The same FastAPI engine is what a
-          dialler host would call over WebSocket after the user allows detection — we are not
-          waiting on a partner SDK to prove the product.
+          Integrators call <code className="font-mono text-[var(--accent)]">GET /health</code>,{" "}
+          <code className="font-mono text-[var(--accent)]">GET /v1/capabilities</code>,{" "}
+          <code className="font-mono text-[var(--accent)]">POST /analyze</code>,{" "}
+          <code className="font-mono text-[var(--accent)]">POST /score-text</code>, and{" "}
+          <code className="font-mono text-[var(--accent)]">WS /stream</code> (alias{" "}
+          <code className="font-mono text-[var(--accent)]">/ws/call-stream/&#123;id&#125;</code>).
+          Full JSON: <span className="text-[var(--text)]">docs/ENGINE.md §7</span>. Thin TS SDK:{" "}
+          <code className="font-mono">apps/web/src/sdk</code>.
         </p>
+        <pre className="mt-5 overflow-x-auto rounded-xl border border-[var(--line)] bg-black/40 p-4 font-mono text-[11px] leading-5 text-[var(--muted)]">{`curl -s http://127.0.0.1:8000/v1/capabilities
+curl -s -F file=@clip.wav http://127.0.0.1:8000/analyze`}</pre>
       </section>
 
       <section className="card p-6 sm:p-8">
-        <div className="kicker">What we will not fake</div>
-        <h2 className="font-serif mt-3 text-3xl">Detection first. Chrome later.</h2>
+        <div className="kicker">Adapters</div>
+        <h2 className="font-serif mt-3 text-3xl">Call demo and bank demo consume the same Core.</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-          This UI already scores audio in the browser so the demo can move. Phase 3 replaces the
-          preview engine with the FastAPI fusion path and must separate a teammate’s real voice
-          from our XTTS / OpenVoice clone. We do not ship a public cloner.
+          The call adapter streams laptop mic audio into Core (stand-in for a dialler). The bank
+          adapter runs a high-value transfer story and applies Hold / MFA when risk is high
+          (stand-in for core banking). Neither is VoxShield itself.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/compare" className="btn-primary">See A / B bench</Link>
-          <Link href="/scenarios" className="btn-ghost">Load a story</Link>
-          <Link href="/calibrate" className="btn-ghost">Calibration checklist</Link>
+          <Link href="/monitor" className="btn-primary">
+            Call adapter
+          </Link>
+          <Link href="/adapters/bank" className="btn-ghost">
+            Bank adapter
+          </Link>
+          <Link href="/operations" className="btn-ghost">
+            Ops curl panel
+          </Link>
         </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="card p-6">
-          <div className="kicker">Privacy</div>
+          <div className="kicker">Models (honest)</div>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Default retention is features, score, timestamp. Raw audio dies with the tab unless
-            someone turns on a demo-only keep — and that is off.
+            Stage 1: AST (ASVspoof5) + wav2vec2 + DSP — not classic AASIST weights. Stage 2:
+            SilverGuard ONNX + bilingual lexicon. Speaker enroll is a <strong>feature-only stub</strong>,
+            not ECAPA-TDNN. We do not claim full dialect coverage — Whisper auto-detect + EN/HI lexicon.
           </p>
         </div>
         <div className="card p-6">
-          <div className="kicker">Languages</div>
+          <div className="kicker">Privacy</div>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Whisper auto-detects the spoken language. DSP is language-agnostic. The fraud
-            lexicon covers English and Hindi/Hinglish. Accents ride the same Stage 1 features.
+            Default retention is features, score, timestamp. Raw audio is not kept by Core.
           </p>
         </div>
       </section>

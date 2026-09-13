@@ -1,43 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, AudioWaveform, Brain, Globe2, Shield } from "lucide-react";
+import { ArrowRight, Building2, Code2, Phone } from "lucide-react";
 import { Atmosphere } from "@/components/atmosphere";
 import { BrandMark } from "@/components/brand-mark";
 import { HeroDeck } from "@/components/hero-deck";
-import { ModeSwitch } from "@/components/mode-switch";
-import { useSession } from "@/store/session-provider";
-
-const LAYERS = [
-  {
-    k: "01",
-    title: "Acoustic",
-    body: "Spectral artifacts, phase residuals, vocoder cutoffs that TTS leaves behind.",
-    icon: AudioWaveform,
-  },
-  {
-    k: "02",
-    title: "Prosody",
-    body: "Pitch contour, pauses, the micro-variation a cloned voice flattens out.",
-    icon: Globe2,
-  },
-  {
-    k: "03",
-    title: "Neural",
-    body: "Optional anti-spoof model. Stays off if the demo laptop cannot load it.",
-    icon: Brain,
-  },
-  {
-    k: "04",
-    title: "Context",
-    body: "Unknown number, first-time caller, urgency language in English and Hindi.",
-    icon: Shield,
-  },
-];
 
 export default function HomePage() {
-  const { mode, setMode } = useSession();
-
   return (
     <div className="relative min-h-screen overflow-hidden">
       <Atmosphere />
@@ -49,20 +18,16 @@ export default function HomePage() {
           <span>
             <span className="block text-sm font-medium tracking-tight">VoxShield</span>
             <span className="block text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">
-              Voice integrity
+              Voice security core
             </span>
           </span>
         </Link>
         <div className="flex items-center gap-4">
-          <Link href="#how" className="hidden text-xs text-[var(--muted)] hover:text-[var(--text)] md:inline">
+          <Link href="/guide" className="hidden text-xs text-[var(--muted)] hover:text-[var(--text)] md:inline">
             How it works
           </Link>
-          <Link href="/scenarios" className="hidden text-xs text-[var(--muted)] hover:text-[var(--text)] md:inline">
-            Scenarios
-          </Link>
-          <ModeSwitch mode={mode} onChange={setMode} />
-          <Link href="/console" className="btn-ghost hidden !px-3.5 !py-1.5 text-xs sm:inline-flex">
-            Open console
+          <Link href="/operations" className="btn-ghost hidden !px-3.5 !py-1.5 text-xs sm:inline-flex">
+            API contract
           </Link>
         </div>
       </header>
@@ -72,31 +37,33 @@ export default function HomePage() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white/3 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-              SIH26104 · AICTE Cyber Security
+              SIH26104 · One core, multiple adapters
             </div>
             <h1 className="font-serif mt-6 max-w-xl text-5xl leading-[1.05] tracking-tight text-[var(--text)] sm:text-7xl">
-              Trusted voices
-              <span className="italic text-[var(--accent)]"> can be faked.</span>
+              VoxShield is the
+              <span className="italic text-[var(--accent)]"> security layer</span>
+              , not the dialler.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-8 text-[var(--muted)] sm:text-lg">
-              Install VoxShield on your phone, accept an incoming call, and get live alerts when
-              the voice sounds cloned or the words sound like a scam — no Truecaller integration
-              required for the demo. Hosts can embed the same engine later.
+              A reusable AI voice-integrity engine: authenticity (clone vs human) and fraud
+              (scam speech) as separate scores, exposed over REST and WebSocket. Banks, contact
+              centres, and calling apps integrate the same Core — they do not reimplement detection.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Link href="/monitor" className="btn-primary">
-                Install & protect a call
-                <ArrowRight size={16} />
+              <Link href="/guide" className="btn-primary">
+                View API contract
+                <Code2 size={16} />
               </Link>
-              <Link href="/protect" className="btn-ghost">
-                Open playbook
+              <Link href="/adapters/bank" className="btn-ghost">
+                Open demo adapters
+                <ArrowRight size={16} />
               </Link>
             </div>
             <div className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-[var(--line)] pt-6">
               {[
-                ["Live WS", "In-call stream"],
-                ["0 audio", "Stored by default"],
-                ["EN + HI", "Fraud lexicon"],
+                ["REST + WS", "Core API"],
+                ["2 scores", "Never blended"],
+                ["0 audio", "Features only"],
               ].map(([value, label]) => (
                 <div key={label}>
                   <div className="font-serif text-2xl">{value}</div>
@@ -110,34 +77,58 @@ export default function HomePage() {
           <HeroDeck />
         </div>
 
-        <div className="mt-20 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {LAYERS.map((layer) => {
-            const Icon = layer.icon;
-            return (
-              <div key={layer.k} className="card group p-6 transition hover:-translate-y-0.5">
-                <div className="mb-8 flex items-center justify-between">
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--accent-dim)] text-[var(--accent)]">
-                    <Icon size={16} />
-                  </span>
-                  <span className="font-mono text-[11px] text-[var(--faint)]">{layer.k}</span>
-                </div>
-                <div className="text-base font-medium">{layer.title}</div>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{layer.body}</p>
+        <div className="mt-16">
+          <div className="kicker">Demo adapters</div>
+          <h2 className="font-serif mt-2 text-3xl sm:text-4xl">Same Core. Two example hosts.</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)]">
+            These are not the product. They show how a calling app and a banking workflow consume
+            VoxShield — the same path Truecaller-class or core-banking hosts would use later.
+          </p>
+          <div className="mt-8 grid gap-4 lg:grid-cols-2">
+            <Link href="/monitor" className="card group p-7 transition hover:-translate-y-0.5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent-dim)] text-[var(--accent)]">
+                  <Phone size={18} />
+                </span>
+                <div className="kicker">Adapter A</div>
               </div>
-            );
-          })}
+              <h3 className="font-serif mt-4 text-2xl">Call demo</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                Mic → WebSocket stream → live authenticity + fraud. Host policy can warn or
+                simulate auto-cut. Stand-in for a dialler integration.
+              </p>
+              <span className="mt-5 inline-flex items-center gap-1 text-sm text-[var(--accent)]">
+                Open call adapter <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
+              </span>
+            </Link>
+            <Link href="/adapters/bank" className="card group p-7 transition hover:-translate-y-0.5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent-dim)] text-[var(--accent)]">
+                  <Building2 size={18} />
+                </span>
+                <div className="kicker">Adapter B</div>
+              </div>
+              <h3 className="font-serif mt-4 text-2xl">Mock banking app</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                High-value transfer request → Core risk scores → Hold / MFA / callback. Stand-in
+                for a financial workflow integration.
+              </p>
+              <span className="mt-5 inline-flex items-center gap-1 text-sm text-[var(--accent)]">
+                Open bank adapter <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
+              </span>
+            </Link>
+          </div>
         </div>
 
         <div id="how" className="mt-16 scroll-mt-24">
-          <div className="kicker">The kill chain</div>
-          <h2 className="font-serif mt-2 text-3xl sm:text-4xl">Five steps. We interrupt at four.</h2>
-          <div className="mt-6 grid gap-3 md:grid-cols-5">
+          <div className="kicker">Architecture</div>
+          <h2 className="font-serif mt-2 text-3xl">Core → API / SDK → any host</h2>
+          <div className="mt-6 grid gap-3 md:grid-cols-4">
             {[
-              ["Harvest", "A few seconds from WhatsApp or YouTube."],
-              ["Clone", "XTTS, OpenVoice, a paid API."],
-              ["Call", "Mobile, VoIP, or a meeting."],
-              ["Pressure", "Send money. Don’t tell anyone."],
-              ["We score", "Before the transfer clears."],
+              ["1. Stream", "Audio or transcript into Core"],
+              ["2. Authenticity", "Clone / synthetic likelihood"],
+              ["3. Fraud", "Scam speech & pressure tactics"],
+              ["4. Host acts", "Warn, MFA, hold, or cut"],
             ].map(([t, b], i) => (
               <div key={t} className="card p-5">
                 <div className="font-mono text-[11px] text-[var(--accent)]">0{i + 1}</div>
@@ -148,76 +139,12 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="mt-10 grid gap-4 lg:grid-cols-2">
-          <div className="card p-7">
-            <div className="kicker">Protect</div>
-            <h2 className="font-serif mt-3 text-3xl">For anyone who trusts the voice.</h2>
-            <p className="mt-3 max-w-md text-sm leading-7 text-[var(--muted)]">
-              Hang up. Call back on a saved number. Never UPI or OTP under pressure.
-              Written so anyone can follow it in thirty seconds — not only families.
-            </p>
-            <Link href="/protect" className="mt-5 inline-flex text-sm text-[var(--accent)]">
-              Open playbook
-            </Link>
-          </div>
-          <div className="card p-7">
-            <div className="kicker">Operations</div>
-            <h2 className="font-serif mt-3 text-3xl">For the analyst who must not miss it.</h2>
-            <p className="mt-3 max-w-md text-sm leading-7 text-[var(--muted)]">
-              Hold the transfer, request MFA, escalate — with caller metadata and a
-              documented API that looks like a platform, not a one-off site.
-            </p>
-            <Link href="/operations" className="mt-5 inline-flex text-sm text-[var(--accent)]">
-              Open console
-            </Link>
-          </div>
-        </div>
-
-        <div className="mt-10 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="card overflow-hidden">
-            <div className="border-b border-[var(--line)] px-6 py-4">
-              <div className="kicker">What changes</div>
-              <h2 className="font-serif mt-2 text-2xl">Caller ID was never the speaker.</h2>
-            </div>
-            <table className="w-full text-left text-sm">
-              <tbody className="divide-y divide-[var(--line)]">
-                {[
-                  ["Caller ID / STIR", "Proves a number, not a throat"],
-                  ["“I know that voice”", "Exactly what clones are built to pass"],
-                  ["Manual callback", "Skipped under pressure"],
-                  ["VoxShield score", "A number + a verb, while still on the line"],
-                ].map(([l, r]) => (
-                  <tr key={l}>
-                    <td className="px-6 py-3.5 text-[var(--text)]">{l}</td>
-                    <td className="px-6 py-3.5 text-[var(--muted)]">{r}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="card p-7">
-            <div className="kicker">Ask us</div>
-            <div className="mt-4 space-y-5">
-              {[
-                ["Is the audio stored?", "No. Features and a score. That is the default."],
-                ["Does it work in Hindi?", "DSP is language-agnostic. Keywords start EN + HI."],
-                ["Can anyone clone a voice here?", "No. The cloner stays off-product, team-only."],
-              ].map(([q, a]) => (
-                <div key={q}>
-                  <div className="text-sm">{q}</div>
-                  <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{a}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
         <footer className="mt-16 flex flex-col gap-3 border-t border-[var(--line)] pt-8 text-xs text-[var(--faint)] sm:flex-row sm:justify-between">
-          <span>VoxShield · SIH26104 · AICTE Cyber Security Cell</span>
+          <span>VoxShield Core · SIH26104 · AICTE Cyber Security Cell</span>
           <span className="flex gap-4">
             <Link href="/guide">How it works</Link>
-            <Link href="/console">Console</Link>
-            <Link href="/scenarios">Scenarios</Link>
+            <Link href="/monitor">Call adapter</Link>
+            <Link href="/adapters/bank">Bank adapter</Link>
           </span>
         </footer>
       </main>
