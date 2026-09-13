@@ -20,7 +20,7 @@ export async function ensureNotificationPermission(): Promise<NotificationPermis
 
 /**
  * Fire a local / SW notification for a live threat.
- * Keep the Call Shield tab in the foreground during demos — mic cannot stay alive in SW.
+ * Keep the call-adapter tab in the foreground during demos — mic cannot stay alive in SW.
  */
 export async function notifyThreat(input: {
   verdict: Verdict;

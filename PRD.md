@@ -210,8 +210,10 @@ commercial cloners: AASIST 48.2%, LCNN 50.0%, RawNet2 50.7%, Wav2Vec2 62.9%. Ove
 replay (phone speaker → room → laptop mic) adds channel distortion those detectors never
 saw.
 
-So v1 does **not** bet the demo on one neural score. It combines a diverse neural pair with
-independent DSP evidence we can defend in a viva.
+So v1 does **not** bet the demo on one neural score, and it does **not** load classic AASIST
+weights. It combines an AASIST-class neural pair (AST on ASVspoof5 + wav2vec2) with
+independent DSP evidence we can defend in a viva. Speaker verify (ECAPA) is roadmap — the
+enroll UI is a feature-only stub.
 
 ```
 Mic stream / file upload

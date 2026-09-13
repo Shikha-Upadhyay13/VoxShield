@@ -27,15 +27,20 @@ export default function EnrollPage() {
       },
     };
     setEnrollment(next);
-    setNote("Voiceprint stored as features only. The waveform was discarded.");
+    setNote("Feature card stored locally. Not a neural speaker embedding.");
   }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <div className="rounded-xl border border-[var(--review)]/45 bg-[var(--review)]/10 px-4 py-3 text-sm text-[var(--review)]">
+        Roadmap stub — <strong>not ECAPA-TDNN</strong>. This page stores a few DSP features for
+        demo UX only. Core does not run speaker verification in v1.
+      </div>
+
       <PageIntro
-        kicker="Cross-session check"
+        kicker="Voiceprint stub"
         title="Enroll a genuine voice. Keep the vector, lose the tape."
-        body="Maps the official historical-sample requirement without storing audio. Use a teammate name now; swap in a real clip in Phase 3."
+        body="Maps the historical-sample requirement without storing audio. Compact feature card only — not ECAPA speaker verify."
       />
 
       <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
@@ -57,7 +62,8 @@ export default function EnrollPage() {
             Enroll from human-like reference
           </button>
           <p className="mt-3 text-xs leading-5 text-[var(--faint)]">
-            Does not clone anyone. Enrollment is a compact feature card, not a recording.
+            Does not clone anyone. Enrollment is a compact feature card, not a recording and not
+            ECAPA.
           </p>
           {note ? <p className="mt-3 text-xs text-[var(--accent)]">{note}</p> : null}
         </section>
@@ -78,7 +84,7 @@ export default function EnrollPage() {
               </button>
             </>
           ) : (
-            <p className="mt-4 text-sm text-[var(--muted)]">No genuine print on this device yet.</p>
+            <p className="mt-4 text-sm text-[var(--muted)]">No enrollment yet.</p>
           )}
         </aside>
       </div>
