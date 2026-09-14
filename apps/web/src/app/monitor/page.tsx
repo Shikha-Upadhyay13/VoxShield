@@ -22,7 +22,15 @@ import { useEngine } from "@/hooks/use-engine";
 import { useLiveCaptions } from "@/hooks/use-live-captions";
 import { useLiveStream } from "@/hooks/use-live-stream";
 import { useSession } from "@/store/session-provider";
-import type { EngineOk, EngineResponse, Verdict } from "@/lib/types";
+import { VERDICT_COPY, type EngineOk, type EngineResponse, type Verdict } from "@/lib/types";
+
+const FRAUD_MEASURES = [
+  "Hang up immediately — do not stay on the line to argue.",
+  "Call back only on a number you already saved (not one the caller gives).",
+  "Never share OTP, UPI PIN, CVV, or remote-access codes.",
+  "Do not transfer money or approve a payout until verified out-of-band.",
+  "Tell a family member or supervisor; banks: Hold + MFA / escalate.",
+];
 
 function mergeTextFraud(audio: EngineOk | null, textResult: EngineOk): EngineOk {
   if (!audio || audio.authenticity.degraded || audio.authenticity.signals.length === 0) {
@@ -62,6 +70,9 @@ export default function MonitorPage() {
   const lastScoredText = useRef("");
   const lastNotified = useRef<string>("");
   const scoreAbort = useRef<AbortController | null>(null);
+
+  const [manualText, setManualText] = useState("");
+  const [manualBusy, setManualBusy] = useState(false);
 
   const cutCall = useCallback(
     (reason: string) => {
@@ -236,10 +247,20 @@ export default function MonitorPage() {
         onNotice: setNotice,
         onAnalysing: () => setPhase("analysing"),
       });
-    } catch {
-      live.setError(
-        "Microphone permission was denied. The call adapter needs mic access while this screen stays open.",
-      );
+      if (engine.health && engine.health.models?.whisper === false) {
+        setNotice(
+          "Whisper transcription is unavailable on this machine — live fraud needs browser captions or the typed box below. Authenticity still scores from the mic.",
+        );
+      }
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : "";
+      const message =
+        name === "NotAllowedError"
+          ? "Microphone permission denied. Click the lock icon in the address bar → allow microphone for localhost:3000, then try again."
+          : name === "NotFoundError"
+            ? "No microphone found. Plug in a mic or select the right input in Windows sound settings."
+            : "Could not open the microphone. Keep this tab in the foreground and allow mic access.";
+      live.setError(message);
       stopSession();
       setPhase("ringing");
     } finally {
@@ -267,6 +288,41 @@ export default function MonitorPage() {
     setNotice(null);
     captions.clear();
     await beginListening();
+  }
+
+  async function scoreManualTranscript() {
+    const text = manualText.trim();
+    if (text.length < 4) {
+      setNotice("Type a few words (or a scam script) to score fraud.");
+      return;
+    }
+    setManualBusy(true);
+    try {
+      const scored = await scoreText(text, {
+        preset,
+        context: {
+          unknownNumber: context.unknownNumber,
+          knownContact: !context.unknownNumber && !context.firstTimeCaller,
+          highValue: preset === "high_value",
+          callOrigin: context.unknownNumber ? "unknown" : "saved_contact",
+        },
+      });
+      setResult((prev) => {
+        const merged = mergeTextFraud(prev, scored);
+        updateLive({
+          result: engineToLegacy(merged),
+          insufficient: false,
+          label: "Typed transcript",
+          source: "live",
+        });
+        return merged;
+      });
+      setNotice(null);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Could not score transcript.");
+    } finally {
+      setManualBusy(false);
+    }
   }
 
   const liveWords = captions.transcript;
@@ -408,15 +464,27 @@ export default function MonitorPage() {
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border border-[var(--line)] bg-black/35 p-3">
+          <div
+            className={clsx(
+              "relative overflow-hidden rounded-2xl border bg-black/35 p-3 transition-colors",
+              threat ? "border-[var(--high)]/55 shadow-[0_0_0_1px_rgba(239,68,68,0.15)]" : "border-[var(--line)]",
+            )}
+          >
             <div className="scanline" />
-            <Waveform analyser={live.analyser} idle={!session.active} />
+            <Waveform analyser={live.analyser} idle={!session.active} threat={Boolean(threat)} />
             <div className="mt-3">
-              <SpectrogramBars analyser={live.analyser} idle={!session.active} />
+              <SpectrogramBars analyser={live.analyser} idle={!session.active} threat={Boolean(threat)} />
             </div>
             {phase === "analysing" ? (
-              <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-lg border border-[var(--accent)]/30 bg-black/70 px-3 py-2 text-[11px] text-[var(--accent)]">
-                Engine analysing… captions keep updating.
+              <div
+                className={clsx(
+                  "pointer-events-none absolute inset-x-3 bottom-3 rounded-lg border bg-black/70 px-3 py-2 text-[11px]",
+                  threat
+                    ? "border-[var(--high)]/40 text-[var(--high)]"
+                    : "border-[var(--accent)]/30 text-[var(--accent)]",
+                )}
+              >
+                {threat ? "Threat on line — follow measures below." : "Engine analysing… captions keep updating."}
               </div>
             ) : null}
           </div>
@@ -425,7 +493,7 @@ export default function MonitorPage() {
             <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">Input</div>
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
               <div
-                className="h-full rounded-full bg-[var(--accent)]"
+                className={clsx("h-full rounded-full transition-colors", threat ? "bg-[var(--high)]" : "bg-[var(--accent)]")}
                 style={{ width: `${Math.round(session.inputLevel * 100)}%` }}
               />
             </div>
@@ -450,26 +518,43 @@ export default function MonitorPage() {
             </p>
           ) : null}
 
-          <div className="mt-5 rounded-xl border border-white/10 bg-black/25 p-4">
-            <div className="kicker">Live transcript</div>
+          <div
+            className={clsx(
+              "mt-5 rounded-xl border bg-black/25 p-4 transition-colors",
+              threat ? "border-[var(--high)]/40" : "border-white/10",
+            )}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="kicker">Live transcript</div>
+              <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--faint)]">
+                Captions · {captions.status}
+              </div>
+            </div>
+            {captions.statusDetail ? (
+              <p className="mt-2 text-xs leading-5 text-[var(--review)]">{captions.statusDetail}</p>
+            ) : null}
             <p
               className={clsx(
                 "mt-3 min-h-[4.5rem] font-serif text-xl leading-8",
-                displayTranscript ? "text-[var(--fg)]" : "text-[var(--muted)]",
+                displayTranscript
+                  ? threat
+                    ? "text-[var(--high)]"
+                    : "text-[var(--fg)]"
+                  : "text-[var(--muted)]",
               )}
             >
               {displayTranscript ? (
                 <>
                   <span>{captions.finalText || (!captions.liveLine ? displayTranscript : "")}</span>
                   {captions.liveLine ? (
-                    <span className="text-[var(--accent)]">
+                    <span className={threat ? "text-[var(--high)]" : "text-[var(--accent)]"}>
                       {captions.finalText ? " " : ""}
                       {captions.liveLine}
                     </span>
                   ) : null}
                 </>
               ) : (
-                "Speak — words appear here as you talk."
+                "Speak clearly — words should appear here. If they do not, type below (Whisper may be blocked on this PC)."
               )}
             </p>
             {result?.fraud.matched_terms.length ? (
@@ -484,6 +569,45 @@ export default function MonitorPage() {
                 ))}
               </div>
             ) : null}
+
+            {threat && result ? (
+              <div className="mt-4 rounded-xl border border-[var(--high)]/40 bg-[var(--high)]/10 p-4">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--high)]">
+                  Measures to take
+                </div>
+                <p className="mt-2 text-sm font-medium text-[var(--text)]">
+                  {VERDICT_COPY[result.verdict].action}
+                </p>
+                <ol className="mt-3 list-decimal space-y-2 pl-4 text-sm leading-6 text-[var(--muted)]">
+                  {FRAUD_MEASURES.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+                <p className="mt-3 text-xs text-[var(--faint)]">{VERDICT_COPY[result.verdict].hindi}</p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <div className="kicker">Type what was said</div>
+              <p className="mt-1 text-[11px] text-[var(--faint)]">
+                Fallback when browser captions fail — scores fraud via POST /score-text.
+              </p>
+              <textarea
+                value={manualText}
+                onChange={(e) => setManualText(e.target.value)}
+                rows={3}
+                placeholder="e.g. Send the OTP now, transfer two lakh…"
+                className="mt-2 w-full resize-y rounded-xl border border-[var(--line)] bg-black/30 px-3 py-2 text-sm outline-none focus:border-[var(--accent)]/40"
+              />
+              <button
+                type="button"
+                className="btn-primary mt-2 !py-1.5 !text-xs"
+                disabled={manualBusy}
+                onClick={() => void scoreManualTranscript()}
+              >
+                {manualBusy ? "Scoring…" : "Score typed words"}
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
