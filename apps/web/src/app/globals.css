@@ -715,12 +715,245 @@ body {
   .phone-body { width: 200px; height: 410px; }
 }
 
+/* —— Same Core / adapters stage —— */
+.adapters-stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 480px at 12% 0%, var(--page-glow-a), transparent 55%),
+    radial-gradient(700px 420px at 92% 88%, var(--page-glow-b), transparent 50%),
+    var(--bg);
+}
+
+.adapters-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 4%, transparent) 40%, transparent),
+    linear-gradient(90deg, rgba(232, 237, 244, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(232, 237, 244, 0.03) 1px, transparent 1px);
+  background-size: auto, 72px 72px, 72px 72px;
+  mask-image: linear-gradient(180deg, transparent, black 12%, black 88%, transparent);
+  opacity: 0.7;
+}
+
+@supports (animation-timeline: view()) {
+  .adapters-intro,
+  .adapters-core-line,
+  .adapter-panel {
+    animation: adapters-rise 0.85s ease both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 38%;
+  }
+}
+
+.adapters-core-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.adapters-core-rule {
+  flex: 1;
+  height: 1px;
+  min-width: 1.5rem;
+  background: linear-gradient(90deg, var(--accent), transparent);
+  opacity: 0.45;
+}
+
+.adapter-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 28px;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), transparent 42%),
+    color-mix(in srgb, var(--bg-card) 88%, transparent);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 28px 70px rgba(0, 0, 0, 0.28);
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.35s ease,
+    box-shadow 0.45s ease;
+}
+
+.adapter-panel:hover {
+  transform: translateY(-6px);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 36px 90px rgba(0, 0, 0, 0.38),
+    0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.adapter-panel--bank:hover {
+  border-color: color-mix(in srgb, var(--accent-2) 40%, var(--line));
+}
+
+.adapter-panel-index {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.5rem;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: var(--faint);
+}
+
+.adapter-panel-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 168px;
+  margin: 1.25rem 1.25rem 0;
+  border-radius: 20px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid var(--line);
+}
+
+.adapter-panel--call .adapter-panel-visual {
+  background:
+    radial-gradient(ellipse 70% 80% at 50% 60%, rgba(124, 232, 204, 0.16), transparent 65%),
+    color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.adapter-panel--bank .adapter-panel-visual {
+  background:
+    radial-gradient(ellipse 70% 80% at 50% 60%, rgba(155, 183, 255, 0.16), transparent 65%),
+    color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+[data-theme="light"] .adapter-panel--call .adapter-panel-visual {
+  background:
+    radial-gradient(ellipse 70% 80% at 50% 60%, rgba(15, 122, 98, 0.12), transparent 65%),
+    var(--bg-hover);
+}
+
+[data-theme="light"] .adapter-panel--bank .adapter-panel-visual {
+  background:
+    radial-gradient(ellipse 70% 80% at 50% 60%, rgba(59, 92, 204, 0.12), transparent 65%),
+    var(--bg-hover);
+}
+
+.adapter-panel-icon {
+  position: relative;
+  z-index: 2;
+  color: var(--accent);
+}
+
+.adapter-panel--bank .adapter-panel-icon {
+  color: var(--accent-2);
+}
+
+.adapter-wave {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72px;
+  height: 72px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  animation: adapter-ripple 2.8s ease-out infinite;
+}
+
+.adapter-wave--2 { animation-delay: 0.9s; }
+.adapter-wave--3 { animation-delay: 1.8s; }
+
+.adapter-ledger {
+  position: absolute;
+  inset: 18% 22%;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-2) 35%, transparent);
+  background:
+    linear-gradient(180deg, transparent 22%, color-mix(in srgb, var(--accent-2) 18%, transparent) 22% 24%, transparent 24%),
+    linear-gradient(180deg, transparent 44%, color-mix(in srgb, var(--accent-2) 14%, transparent) 44% 46%, transparent 46%),
+    linear-gradient(180deg, transparent 66%, color-mix(in srgb, var(--accent-2) 14%, transparent) 66% 68%, transparent 68%),
+    color-mix(in srgb, var(--bg-card) 50%, transparent);
+  animation: adapter-ledger-pulse 3.5s ease-in-out infinite;
+}
+
+.adapter-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 1.5rem 1.75rem 1.75rem;
+}
+
+.adapter-panel-cta {
+  margin-top: auto;
+}
+
+@keyframes adapters-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes adapter-ripple {
+  0% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(0.55);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.1);
+  }
+}
+
+@keyframes adapter-ledger-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+
+@media (max-width: 640px) {
+  .adapters-core-line {
+    flex-wrap: wrap;
+  }
+  .adapters-core-rule {
+    display: none;
+  }
+  .adapter-panel {
+    min-height: 360px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .phone-orbit,
   .phone-body,
   .phone-avatar-ring,
-  .phone-score-fill {
+  .phone-score-fill,
+  .adapters-intro,
+  .adapters-core-line,
+  .adapter-panel,
+  .adapter-wave,
+  .adapter-ledger {
     animation: none;
+  }
+
+  .adapter-panel:hover {
+    transform: none;
   }
 }
 

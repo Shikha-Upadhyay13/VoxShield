@@ -77,43 +77,77 @@ export default function HomePage() {
       </div>
 
       {/* Viewport 2 — Same Core (scroll to see) */}
-      <main className="relative z-10 border-t border-[var(--line)] bg-[var(--bg)]/40">
-        <section
-          id="adapters"
-          className="mx-auto max-w-7xl scroll-mt-8 px-6 py-20 sm:px-10 sm:py-24 lg:px-12"
-        >
-          <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">Demo adapters</p>
-          <h2 className="font-serif mt-3 text-4xl tracking-tight sm:text-5xl">Same Core. Two hosts.</h2>
-          <p className="mt-4 max-w-xl text-base leading-8 text-[var(--muted)]">
-            Not the product — examples of how a calling app and a bank consume VoxShield.
-          </p>
-          <div className="mt-14 grid gap-12 sm:grid-cols-2 sm:gap-16">
-            <Link href="/monitor" className="group block">
-              <div className="flex items-center gap-2 text-[var(--accent)]">
-                <Phone size={16} />
-                <span className="text-[11px] uppercase tracking-[0.14em]">Call</span>
-              </div>
-              <h3 className="mt-4 text-2xl font-medium tracking-tight">Call adapter</h3>
-              <p className="mt-3 max-w-sm text-sm leading-7 text-[var(--muted)]">
-                Mic → WebSocket → live authenticity + fraud. Host can warn or simulate cut.
+      <main className="relative z-10 border-t border-[var(--line)]">
+        <section id="adapters" className="adapters-stage scroll-mt-0">
+          <div className="adapters-glow" aria-hidden />
+          <div className="mx-auto max-w-7xl px-6 py-20 sm:px-10 sm:py-28 lg:px-12 lg:py-32">
+            <div className="adapters-intro max-w-3xl">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--accent)]">Demo adapters</p>
+              <h2 className="font-serif mt-4 text-4xl leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+                Same Core.
+                <span className="block italic text-[var(--accent)]">Two hosts.</span>
+              </h2>
+              <p className="mt-5 max-w-xl text-base leading-8 text-[var(--muted)] sm:text-lg sm:leading-9">
+                Not the product — live examples of how a calling app and a bank consume the same
+                VoxShield engine.
               </p>
-              <span className="mt-5 inline-flex items-center gap-1 text-sm text-[var(--accent)]">
-                Open <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
-              </span>
-            </Link>
-            <Link href="/adapters/bank" className="group block">
-              <div className="flex items-center gap-2 text-[var(--accent)]">
-                <Building2 size={16} />
-                <span className="text-[11px] uppercase tracking-[0.14em]">Bank</span>
-              </div>
-              <h3 className="mt-4 text-2xl font-medium tracking-tight">Bank adapter</h3>
-              <p className="mt-3 max-w-sm text-sm leading-7 text-[var(--muted)]">
-                Transfer request → Core scores → Hold / MFA / callback.
-              </p>
-              <span className="mt-5 inline-flex items-center gap-1 text-sm text-[var(--accent)]">
-                Open <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
-              </span>
-            </Link>
+            </div>
+
+            <div className="adapters-core-line mt-12 flex items-center gap-3 sm:mt-14" aria-hidden>
+              <span className="adapters-core-pill">VoxShield Core</span>
+              <span className="adapters-core-rule" />
+              <span className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">REST · WS · SDK</span>
+              <span className="adapters-core-rule" />
+              <span className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">Any host</span>
+            </div>
+
+            <div className="mt-12 grid gap-5 lg:mt-16 lg:grid-cols-2 lg:gap-6">
+              <Link href="/monitor" className="adapter-panel adapter-panel--call group">
+                <div className="adapter-panel-index">01</div>
+                <div className="adapter-panel-visual" aria-hidden>
+                  <span className="adapter-wave" />
+                  <span className="adapter-wave adapter-wave--2" />
+                  <span className="adapter-wave adapter-wave--3" />
+                  <Phone className="adapter-panel-icon" size={28} />
+                </div>
+                <div className="adapter-panel-body">
+                  <div className="flex items-center gap-2 text-[var(--accent)]">
+                    <span className="text-[11px] uppercase tracking-[0.16em]">Call adapter</span>
+                  </div>
+                  <h3 className="font-serif mt-3 text-3xl tracking-tight sm:text-4xl">Live call host</h3>
+                  <p className="mt-3 max-w-sm text-sm leading-7 text-[var(--muted)]">
+                    Mic → WebSocket stream → authenticity + fraud in real time. Host policy can
+                    warn or simulate auto-cut.
+                  </p>
+                  <span className="adapter-panel-cta mt-8 inline-flex items-center gap-2 text-sm font-medium text-[var(--accent)]">
+                    Open call demo
+                    <ArrowRight size={16} className="transition duration-300 group-hover:translate-x-1" />
+                  </span>
+                </div>
+              </Link>
+
+              <Link href="/adapters/bank" className="adapter-panel adapter-panel--bank group">
+                <div className="adapter-panel-index">02</div>
+                <div className="adapter-panel-visual" aria-hidden>
+                  <span className="adapter-ledger" />
+                  <Building2 className="adapter-panel-icon" size={28} />
+                </div>
+                <div className="adapter-panel-body">
+                  <div className="flex items-center gap-2 text-[var(--accent-2)]">
+                    <span className="text-[11px] uppercase tracking-[0.16em]">Bank adapter</span>
+                  </div>
+                  <h3 className="font-serif mt-3 text-3xl tracking-tight sm:text-4xl">Banking host</h3>
+                  <p className="mt-3 max-w-sm text-sm leading-7 text-[var(--muted)]">
+                    High-value transfer request → Core risk scores → Hold / MFA / callback before
+                    money moves.
+                  </p>
+                  <span className="adapter-panel-cta mt-8 inline-flex items-center gap-2 text-sm font-medium text-[var(--accent-2)]">
+                    Open bank demo
+                    <ArrowRight size={16} className="transition duration-300 group-hover:translate-x-1" />
+                  </span>
+                </div>
+              </Link>
+            </div>
           </div>
         </section>
 
