@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { PageIntro } from "@/components/atmosphere";
 import { DetectionReport } from "@/components/detection-report";
+import { EvidenceBrief } from "@/components/evidence-brief";
 import { bufferToWavBlob, decodeFile, synthesizeCloneLike, synthesizeHumanLike } from "@/lib/audio";
 import { engineToLegacy, isOk } from "@/lib/engine-client";
 import { clsx } from "@/lib/format";
@@ -12,7 +13,7 @@ import { useSession } from "@/store/session-provider";
 import type { EngineResponse } from "@/lib/types";
 
 export default function AnalyzePage() {
-  const { context, preset, applyResult } = useSession();
+  const { context, preset, applyResult, enrollment } = useSession();
   const engine = useEngine();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +53,7 @@ export default function AnalyzePage() {
         context,
         language: null,
         decoded,
+        enrollment,
       });
 
       setResult(outcome.result);
@@ -251,6 +253,7 @@ export default function AnalyzePage() {
               <audio controls src={audioUrl} className="w-full" />
             </div>
           ) : null}
+          <EvidenceBrief result={result} />
           <DetectionReport result={result} label={fileName ?? undefined} />
           <div className="flex flex-wrap gap-3">
             <Link href="/protect" className="btn-primary">
@@ -261,6 +264,8 @@ export default function AnalyzePage() {
             </Link>
           </div>
         </>
+      ) : result ? (
+        <DetectionReport result={result} label={fileName ?? undefined} />
       ) : null}
     </div>
   );
