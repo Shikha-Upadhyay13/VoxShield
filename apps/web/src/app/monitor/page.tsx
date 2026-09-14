@@ -9,6 +9,8 @@ import {
   SignalTable,
   VerdictBanner,
 } from "@/components/detection-report";
+import { EvidenceBrief } from "@/components/evidence-brief";
+import { IdentityChip } from "@/components/identity-chip";
 import { InstallBanner } from "@/components/install-banner";
 import { RiskRing } from "@/components/risk-ring";
 import { ScoreTimeline } from "@/components/score-timeline";
@@ -44,7 +46,7 @@ function pickVerdict(auth: number, fraud: number): Verdict {
 }
 
 export default function MonitorPage() {
-  const { context, setContext, preset, session, startSession, updateLive, stopSession } =
+  const { context, setContext, preset, session, startSession, updateLive, stopSession, enrollment } =
     useSession();
   const engine = useEngine();
   const live = useLiveStream();
@@ -148,7 +150,15 @@ export default function MonitorPage() {
       scoreAbort.current?.abort();
       const controller = new AbortController();
       scoreAbort.current = controller;
-      void scoreText(text, { preset })
+      void scoreText(text, {
+        preset,
+        context: {
+          unknownNumber: context.unknownNumber,
+          knownContact: !context.unknownNumber && !context.firstTimeCaller,
+          highValue: preset === "high_value",
+          callOrigin: context.unknownNumber ? "unknown" : "saved_contact",
+        },
+      })
         .then((scored) => {
           if (controller.signal.aborted) return;
           setResult((prev) => {
@@ -220,6 +230,7 @@ export default function MonitorPage() {
         context,
         preset,
         language: null,
+        enrollment,
         onLevel: (inputLevel) => updateLive({ inputLevel }),
         onResult: handleResult,
         onNotice: setNotice,
@@ -356,12 +367,16 @@ export default function MonitorPage() {
       ) : null}
 
       {result ? <VerdictBanner verdict={result.verdict} confidence={result.confidence} /> : null}
+      {result ? <EvidenceBrief result={result} timeline={session.timeline} /> : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
         <section className="card frame flex flex-col p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-medium">Call adapter (demo)</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-sm font-medium">Call adapter (demo)</div>
+                <IdentityChip identity={result?.identity} />
+              </div>
               <div className="text-xs text-[var(--faint)]">
                 Live authenticity + fraud from Core while you stay on this screen.
               </div>
