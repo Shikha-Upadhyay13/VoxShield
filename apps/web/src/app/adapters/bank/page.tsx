@@ -4,9 +4,13 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { Building2, ShieldAlert, Upload } from "lucide-react";
 import { PageIntro } from "@/components/atmosphere";
+import { EvidenceBrief } from "@/components/evidence-brief";
+import { IdentityChip } from "@/components/identity-chip";
 import { RiskRing } from "@/components/risk-ring";
 import { clsx } from "@/lib/format";
+import { integrityHash, integrityHashSyncFallback } from "@/lib/integrity";
 import { analyze, isOk, scoreText } from "@/sdk";
+import { useSession } from "@/store/session-provider";
 import type { EngineOk, OperationsAction, Verdict } from "@/lib/types";
 
 const SCENARIO = {
@@ -17,12 +21,22 @@ const SCENARIO = {
     "This is Rohan, the CFO. I need you to transfer twelve lakh forty thousand to the vendor right now. Do not call anyone. Send me the OTP from the bank SMS.",
 };
 
+type PolicyEvent = { t: string; step: string };
+
 const HOST_ACTIONS: { id: OperationsAction | "callback" | "block"; label: string; hint: string }[] = [
   { id: "hold", label: "Hold transfer", hint: "Freeze NEFT until callback" },
   { id: "mfa", label: "Request MFA", hint: "Step-up auth on known channel" },
   { id: "callback", label: "Callback KYC number", hint: "Out-of-band verify" },
   { id: "block", label: "Block transfer", hint: "Reject this payout locally" },
 ];
+
+function shouldAutoHold(result: EngineOk): boolean {
+  return (
+    result.verdict === "critical" ||
+    result.verdict === "fraud_human" ||
+    result.fraud.band === "high"
+  );
+}
 
 function hostActionFor(verdict: Verdict): string {
   switch (verdict) {
@@ -40,6 +54,7 @@ function hostActionFor(verdict: Verdict): string {
 
 export default function BankAdapterPage() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const { enrollment } = useSession();
   const [transcript, setTranscript] = useState(SCENARIO.sampleTranscript);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,19 +62,66 @@ export default function BankAdapterPage() {
   const [rawJson, setRawJson] = useState<string | null>(null);
   const [hostNotice, setHostNotice] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
+  const [awaitingMfa, setAwaitingMfa] = useState(false);
+  const [policyLog, setPolicyLog] = useState<PolicyEvent[]>([]);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [auditSeal, setAuditSeal] = useState<string | null>(null);
+
+  function pushLog(step: string) {
+    setPolicyLog((prev) => [...prev, { t: new Date().toLocaleTimeString(), step }]);
+  }
+
+  async function seal(result: EngineOk, action: string) {
+    const payload = {
+      verdict: result.verdict,
+      auth: result.authenticity.score,
+      fraud: result.fraud.score,
+      action,
+      ts: new Date().toISOString(),
+    };
+    try {
+      setAuditSeal(await integrityHash(payload));
+    } catch {
+      setAuditSeal(integrityHashSyncFallback(payload));
+    }
+  }
+
+  function applyAutoPolicy(scored: EngineOk) {
+    setPolicyLog([]);
+    pushLog(`score auth=${scored.authenticity.score} fraud=${scored.fraud.score} verdict=${scored.verdict}`);
+    if (shouldAutoHold(scored)) {
+      setBlocked(true);
+      setAwaitingMfa(true);
+      pushLog("auto_hold");
+      pushLog("awaiting_mfa");
+      setHostNotice("Host policy: high-value action held automatically. MFA / callback required.");
+      void seal(scored, "auto_hold");
+    } else {
+      setBlocked(false);
+      setAwaitingMfa(false);
+      pushLog("continue");
+      setHostNotice(null);
+      void seal(scored, "continue");
+    }
+  }
 
   async function runTextScore() {
     setBusy(true);
     setError(null);
     setHostNotice(null);
     try {
-      const scored = await scoreText(transcript, { preset: "high_value" });
+      const scored = await scoreText(transcript, {
+        preset: "high_value",
+        context: {
+          unknownNumber: true,
+          knownContact: false,
+          highValue: true,
+          callOrigin: "unknown",
+        },
+      });
       setResult(scored);
       setRawJson(JSON.stringify(scored, null, 2));
-      if (scored.fraud.band === "high" || scored.verdict === "critical" || scored.verdict === "fraud_human") {
-        setBlocked(true);
-        setHostNotice("Host policy: high-value action held pending MFA / callback.");
-      }
+      applyAutoPolicy(scored);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Core unreachable.");
     } finally {
@@ -75,6 +137,13 @@ export default function BankAdapterPage() {
       const scored = await analyze(file, file.name, {
         preset: "high_value",
         wantTranscript: true,
+        context: {
+          unknownNumber: true,
+          knownContact: false,
+          highValue: true,
+          callOrigin: "unknown",
+        },
+        enrollmentFeatures: enrollment?.features ?? null,
       });
       setRawJson(JSON.stringify(scored, null, 2));
       if (!isOk(scored)) {
@@ -83,10 +152,7 @@ export default function BankAdapterPage() {
         return;
       }
       setResult(scored);
-      if (scored.fraud.band === "high" || scored.verdict === "critical" || scored.verdict === "fraud_human") {
-        setBlocked(true);
-        setHostNotice("Host policy: transfer blocked locally after Core verdict.");
-      }
+      applyAutoPolicy(scored);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Core unreachable.");
     } finally {
@@ -97,8 +163,26 @@ export default function BankAdapterPage() {
   function applyHost(action: (typeof HOST_ACTIONS)[number]["id"]) {
     if (action === "block" || action === "hold") {
       setBlocked(true);
+      setAwaitingMfa(true);
     }
+    if (action === "mfa" || action === "callback") {
+      setAwaitingMfa(true);
+    }
+    pushLog(`manual_${action}`);
     setHostNotice(`Host simulated: ${action}. Core did not execute this — the adapter did.`);
+    if (result) void seal(result, action);
+  }
+
+  function tryOverride() {
+    if (overrideReason.trim().length < 8) {
+      setHostNotice("Override requires a written reason (min 8 characters).");
+      return;
+    }
+    setBlocked(false);
+    setAwaitingMfa(false);
+    pushLog("override_allow");
+    setHostNotice(`Override allowed with reason: ${overrideReason.trim()}`);
+    if (result) void seal(result, "override_allow");
   }
 
   return (
@@ -106,7 +190,7 @@ export default function BankAdapterPage() {
       <PageIntro
         kicker="Demo adapter · not VoxShield Bank"
         title="Mock banking host."
-        body="Paste a CFO wire / KYC OTP script or attach audio. The adapter calls VoxShield Core via the TS SDK, then simulates Hold · MFA · callback · block — host policy only."
+        body="Paste a CFO wire / KYC OTP script or attach audio. Core scores; this host auto-holds on high fraud and requires MFA — policy only."
       />
 
       <section className="card flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
@@ -119,6 +203,9 @@ export default function BankAdapterPage() {
             <div className="mt-1 font-mono text-xs text-[var(--muted)]">
               {SCENARIO.amount} → {SCENARIO.beneficiary}
             </div>
+            <div className="mt-2">
+              <IdentityChip identity={result?.identity} />
+            </div>
           </div>
         </div>
         <div
@@ -129,7 +216,7 @@ export default function BankAdapterPage() {
               : "border-[var(--line)] text-[var(--muted)]",
           )}
         >
-          {blocked ? "Transfer held / blocked" : "Transfer pending review"}
+          {blocked ? (awaitingMfa ? "Held · awaiting MFA" : "Transfer held / blocked") : "Transfer pending review"}
         </div>
       </section>
 
@@ -156,6 +243,9 @@ export default function BankAdapterPage() {
               <Upload size={14} />
               Attach audio (POST /analyze)
             </button>
+            <button type="button" className="btn-ghost" disabled={blocked} onClick={() => setHostNotice("Approve disabled while held.")}>
+              Approve transfer
+            </button>
             <input
               ref={fileRef}
               type="file"
@@ -173,6 +263,23 @@ export default function BankAdapterPage() {
             <p className="rounded-lg border border-[var(--accent)]/30 bg-[var(--accent-dim)] px-3 py-2 text-xs text-[var(--accent)]">
               {hostNotice}
             </p>
+          ) : null}
+          {blocked ? (
+            <div className="rounded-xl border border-[var(--high)]/35 bg-[var(--high)]/10 p-4">
+              <div className="text-sm font-medium text-[var(--high)]">MFA / callback gate</div>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Override only with a written reason (mirrors Ops Allow).
+              </p>
+              <input
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder="Reason for override…"
+                className="mt-3 w-full rounded-xl border border-[var(--line)] bg-black/25 px-3 py-2 text-sm outline-none"
+              />
+              <button type="button" className="btn-ghost mt-3" onClick={tryOverride}>
+                Override hold
+              </button>
+            </div>
           ) : null}
         </section>
 
@@ -195,17 +302,15 @@ export default function BankAdapterPage() {
         </aside>
       </div>
 
+      {result ? <EvidenceBrief result={result} /> : null}
+
       <section className="card p-5 sm:p-6">
         <div className="mb-3 flex items-center gap-2">
           <ShieldAlert size={16} className="text-[var(--accent)]" />
           <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">
-            Host actions (local only)
+            Host actions + policy log
           </div>
         </div>
-        <p className="mb-4 max-w-2xl text-sm text-[var(--muted)]">
-          These buttons mimic what core banking would do after the verdict. VoxShield Core never
-          moves money.
-        </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {HOST_ACTIONS.map((action) => (
             <button
@@ -219,6 +324,16 @@ export default function BankAdapterPage() {
             </button>
           ))}
         </div>
+        {policyLog.length ? (
+          <pre className="mt-4 overflow-x-auto font-mono text-[11px] leading-5 text-[var(--muted)]">
+            {policyLog.map((e) => `${e.t} → ${e.step}`).join("\n")}
+          </pre>
+        ) : null}
+        {auditSeal ? (
+          <p className="mt-3 break-all font-mono text-[10px] text-[var(--faint)]">
+            Audit seal · {auditSeal}
+          </p>
+        ) : null}
       </section>
 
       {rawJson ? (

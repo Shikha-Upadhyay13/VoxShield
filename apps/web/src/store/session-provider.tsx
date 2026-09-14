@@ -6,8 +6,11 @@ import {
   useContext,
   useEffect,
   useState,
+  type Dispatch,
+  type SetStateAction,
 } from "react";
 import { SAMPLE_INCIDENTS, SCENARIOS } from "@/lib/demo-data";
+import { integrityHash, integrityHashSyncFallback } from "@/lib/integrity";
 import { reband } from "@/lib/scoring";
 import type {
   AnalysisResult,
@@ -22,6 +25,39 @@ import type {
   Source,
   ThresholdPreset,
 } from "@/lib/types";
+
+function sealPayload(incident: Incident) {
+  return {
+    id: incident.id,
+    timestamp: incident.timestamp,
+    score: incident.result.score,
+    band: incident.result.band,
+    label: incident.label,
+    action: incident.action ?? null,
+    reason: incident.actionReason ?? null,
+  };
+}
+
+function attachHashSoon(
+  incident: Incident,
+  setIncidents: Dispatch<SetStateAction<Incident[]>>,
+) {
+  const payload = sealPayload(incident);
+  const run = async () => {
+    try {
+      const hash = await integrityHash(payload);
+      setIncidents((list) =>
+        list.map((item) => (item.id === incident.id ? { ...item, integrityHash: hash } : item)),
+      );
+    } catch {
+      const hash = integrityHashSyncFallback(payload);
+      setIncidents((list) =>
+        list.map((item) => (item.id === incident.id ? { ...item, integrityHash: hash } : item)),
+      );
+    }
+  };
+  void run();
+}
 
 const STORAGE_KEY = "voxshield.session.v1";
 
@@ -204,6 +240,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       };
       setIncidents((prev) => [incident, ...prev].slice(0, 40));
       setSelectedIncidentId(incident.id);
+      attachHashSoon(incident, setIncidents);
     },
     [mode, preset],
   );
@@ -222,6 +259,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         };
         setIncidents((list) => [incident, ...list].slice(0, 40));
         setSelectedIncidentId(incident.id);
+        attachHashSoon(incident, setIncidents);
       }
       return { ...prev, active: false, inputLevel: 0 };
     });
@@ -232,7 +270,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!prev.length) return prev;
       const [head, ...rest] = prev;
       if (!head) return prev;
-      return [{ ...head, action, actionReason: reason }, ...rest];
+      const next = { ...head, action, actionReason: reason };
+      attachHashSoon(next, setIncidents);
+      return [next, ...rest];
     });
   }, []);
 
@@ -264,6 +304,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
     setIncidents((prev) => [incident, ...prev].slice(0, 40));
     setSelectedIncidentId(incident.id);
+    attachHashSoon(incident, setIncidents);
     return scenario.mode === "protect" ? "/protect" : "/operations";
   }, []);
 

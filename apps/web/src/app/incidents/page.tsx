@@ -99,6 +99,11 @@ export default function IncidentsPage() {
               <p className="mt-1 text-xs text-[var(--faint)]">
                 {formatClock(selected.timestamp)} · {modeLabel(selected.mode)} · features only
               </p>
+              {selected.integrityHash ? (
+                <p className="mt-3 break-all font-mono text-[10px] text-[var(--faint)]">
+                  Audit seal · {selected.integrityHash}
+                </p>
+              ) : null}
               {selected.actionReason ? (
                 <p className="mt-3 text-sm text-[var(--muted)]">{selected.actionReason}</p>
               ) : null}
