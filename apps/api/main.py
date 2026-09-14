@@ -522,16 +522,23 @@ async def _score_and_send(
             session.call_context,
             session.enrollment_features,
         )
-        await websocket.send_json(result.model_dump())
+        # Client may have hung up while CPU scored — never throw on a dead socket.
+        try:
+            await websocket.send_json(result.model_dump())
+        except (WebSocketDisconnect, RuntimeError) as send_exc:
+            logger.info("Stream result not sent (client gone): %s", send_exc or type(send_exc).__name__)
+            return
         if result.status == "ok":
             logger.info("Stream score %s", fusion.summarize(result))
         else:
             logger.info("Stream gate: %s", result.reason)
     except asyncio.CancelledError:
         raise
+    except WebSocketDisconnect:
+        logger.info("Stream score aborted: client disconnected")
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Stream score failed: %s", exc)
+        logger.warning("Stream score failed: %s: %s", type(exc).__name__, exc or repr(exc))
         with contextlib.suppress(Exception):
-            await websocket.send_json({"status": "error", "reason": str(exc)})
+            await websocket.send_json({"status": "error", "reason": str(exc) or type(exc).__name__})
     finally:
         session.busy = False
