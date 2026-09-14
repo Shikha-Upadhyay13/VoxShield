@@ -70,6 +70,14 @@ export default function HomePage() {
         <a
           href="#adapters"
           className="mx-auto mb-8 flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-[var(--faint)] transition hover:text-[var(--muted)]"
+          onClick={(e) => {
+            e.preventDefault();
+            const target = document.getElementById("adapters");
+            if (!target) return;
+            const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+            window.history.replaceState(null, "", "#adapters");
+          }}
         >
           Demo adapters
           <ArrowDown size={12} />
@@ -78,14 +86,14 @@ export default function HomePage() {
 
       {/* Viewport 2 — Same Core (scroll to see) */}
       <main className="relative z-10 border-t border-[var(--line)]">
-        <section id="adapters" className="adapters-stage scroll-mt-0">
+        <section id="adapters" className="adapters-stage">
           <div className="adapters-glow" aria-hidden />
           <div className="mx-auto max-w-7xl px-6 py-20 sm:px-10 sm:py-28 lg:px-12 lg:py-32">
-            <div className="adapters-intro max-w-3xl">
+            <div className="adapters-intro max-w-5xl">
               <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--accent)]">Demo adapters</p>
-              <h2 className="font-serif mt-4 text-4xl leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-                Same Core.
-                <span className="block italic text-[var(--accent)]">Two hosts.</span>
+              <h2 className="font-serif mt-4 text-4xl leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl xl:text-[4.25rem]">
+                Same Core.{" "}
+                <span className="italic text-[var(--accent)]">Two hosts.</span>
               </h2>
               <p className="mt-5 max-w-xl text-base leading-8 text-[var(--muted)] sm:text-lg sm:leading-9">
                 Not the product — live examples of how a calling app and a bank consume the same
