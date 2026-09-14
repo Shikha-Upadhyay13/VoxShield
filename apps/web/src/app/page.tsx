@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Building2, Code2, Phone } from "lucide-react";
 import { Atmosphere } from "@/components/atmosphere";
 import { BrandMark } from "@/components/brand-mark";
-import { HeroDeck } from "@/components/hero-deck";
+import { PhoneMock3D } from "@/components/phone-mock-3d";
 
 export default function HomePage() {
   return (
@@ -74,7 +74,9 @@ export default function HomePage() {
               ))}
             </div>
           </div>
-          <HeroDeck />
+          <div className="relative flex justify-center lg:justify-end">
+            <PhoneMock3D />
+          </div>
         </div>
 
         <div className="mt-16">
