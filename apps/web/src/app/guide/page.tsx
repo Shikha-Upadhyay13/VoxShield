@@ -56,7 +56,10 @@ curl -s -F file=@clip.wav http://127.0.0.1:8000/analyze`}</pre>
           (stand-in for core banking). Neither is VoxShield itself.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/monitor" className="btn-primary">
+          <Link href="/demo" className="btn-primary">
+            Judge demo
+          </Link>
+          <Link href="/monitor" className="btn-ghost">
             Call adapter
           </Link>
           <Link href="/adapters/bank" className="btn-ghost">
@@ -68,12 +71,24 @@ curl -s -F file=@clip.wav http://127.0.0.1:8000/analyze`}</pre>
         </div>
       </section>
 
+      <section className="card p-6 sm:p-8">
+        <div className="kicker">Standouts</div>
+        <h2 className="font-serif mt-3 text-3xl">What judges should remember.</h2>
+        <ul className="mt-4 space-y-2 text-sm leading-7 text-[var(--muted)]">
+          <li>Evidence Brief — why the verdict, not only the rings.</li>
+          <li>Bank auto Hold / MFA on high fraud — host policy, not Core banking.</li>
+          <li>DSP voiceprint Match/Mismatch — cross-session card, method dsp_features_v1.</li>
+          <li>Context enrichment into Core — unknown number / high-value boost fraud only.</li>
+          <li>Incident audit seal — SHA-256 over feature-only fields.</li>
+        </ul>
+      </section>
+
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="card p-6">
           <div className="kicker">Models (honest)</div>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
             Stage 1: AST (ASVspoof5) + wav2vec2 + DSP — not classic AASIST weights. Stage 2:
-            SilverGuard ONNX + bilingual lexicon. Speaker enroll is a <strong>feature-only stub</strong>,
+            SilverGuard ONNX + bilingual lexicon. Speaker check is <strong>DSP voiceprint only</strong>,
             not ECAPA-TDNN. We do not claim full dialect coverage — Whisper auto-detect + EN/HI lexicon.
           </p>
         </div>

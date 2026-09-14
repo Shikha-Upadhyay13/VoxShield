@@ -151,18 +151,28 @@ for the full list of known limitations.
 | Route | What you see |
 |---|---|
 | `/` | Landing — **VoxShield Core** positioning |
+| `/demo` | **Judge demo** — one-click scam scripts (no mic) |
 | `/guide` | Core contract, adapters, honest model map |
-| `/monitor` | **Call adapter (demo)** — mic → WS → dual scores |
-| `/adapters/bank` | **Bank adapter (demo)** — transfer + Hold/MFA |
+| `/monitor` | **Call adapter (demo)** — mic → WS → dual scores + Evidence Brief |
+| `/adapters/bank` | **Bank adapter (demo)** — auto Hold/MFA on high fraud |
 | `/operations` | Host-policy curl panel (not the bank product) |
 | `/console` | Command center |
-| `/analyze` | Upload, full detection report, engine status |
+| `/analyze` | Upload, Evidence Brief, full detection report |
 | `/compare` | Human-like vs clone-like bench |
 | `/protect` | Host playbook copy |
-| `/incidents` | Feature-only history |
+| `/incidents` | Feature-only history + integrity hash |
 | `/scenarios` | Family / CFO / official stories |
-| `/enroll` | Feature-only voiceprint **stub** (not ECAPA) |
+| `/enroll` | DSP voiceprint card (**not ECAPA**) |
 | `/calibrate` | Calibration helper |
+
+### Standout demo features
+
+- **Evidence Brief** — top signals, fraud terms, host action copy
+- **Bank auto-policy** — Hold + MFA gate without clicking Hold
+- **DSP voiceprint Match/Mismatch** — cross-session card, not ECAPA
+- **Context enrichment** — unknown number / high-value into Core
+- **Incident audit seal** — SHA-256 over feature-only fields
+- **Judge demo** — `/demo` runs CFO/OTP/Family scripts via `/score-text`
 
 ## Stack
 

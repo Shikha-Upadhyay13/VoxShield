@@ -479,10 +479,17 @@ more than an unnecessary verification step. Every number here is overridable in
 |---|---|
 | `GET /health` | Which models actually loaded, profile, engine version, `warming` / `ready` |
 | `GET /v1/capabilities` | Integrator discovery: profile, models, calibrated, languages, verdicts, recommended host actions |
-| `POST /analyze` | Multipart `file`, optional `preset`, `language`, `want_transcript` → authenticity + fraud + verdict |
-| `POST /score-text` | Form `text` + optional `preset` → fraud score from captions / transcript alone (no audio) |
-| `WS /stream` | Binary PCM16 frames after `{"type":"start","sample_rate":…}` |
+| `POST /analyze` | Multipart `file`, optional `preset`, `language`, `want_transcript`, context flags (`known_contact`, `unknown_number`, `high_value`, `call_origin`), optional `enrollment_features` JSON |
+| `POST /score-text` | Form `text` + optional `preset` + same context flags → fraud score from captions / transcript alone (no audio) |
+| `WS /stream` | Binary PCM16 frames after `{"type":"start","sample_rate":…}`; start JSON may include context + `enrollment_features` |
 | `WS /ws/call-stream/{call_id}` | Alias of `/stream` for dialler-style hosts that bind a call id |
+
+Optional response blocks on `status: "ok"`:
+
+| Block | Purpose |
+|---|---|
+| `context` | Echo of host metadata + `enrichment_boost` (bounded fraud bump only — never blended into authenticity) |
+| `identity` | DSP voiceprint compare when `enrollment_features` was supplied (`method: "dsp_features_v1"`). **Not ECAPA.** |
 
 `WS /stream` (and the call-stream alias) add `"partial": true` and `"t_ms": <ms since session start>` to each scored frame.
 
@@ -573,6 +580,7 @@ that we can explain beats a fake 99% that collapses under a judge's question.
 | [apps/api/calibrate.py](../apps/api/calibrate.py) | Section 8 harness |
 | [apps/api/eval_fraud.py](../apps/api/eval_fraud.py) | Stage 2 metrics on a public labelled dataset |
 | [apps/web/src/sdk](../apps/web/src/sdk) | Thin TS SDK: analyze, scoreText, connectStream, capabilities |
+| [apps/api/engine/identity.py](../apps/api/engine/identity.py) | DSP voiceprint match (`dsp_features_v1`) — not ECAPA |
 | [apps/web/src/lib/engine-client.ts](../apps/web/src/lib/engine-client.ts) | Re-exports SDK + browser-fallback helpers for the demo app |
 | [apps/web/src/lib/scoring.ts](../apps/web/src/lib/scoring.ts) | Browser fallback only — **not** the source of truth |
 
