@@ -92,6 +92,8 @@ export function useLiveStream() {
 
       const ctx = new AudioContext();
       if (ctx.state === "suspended") await ctx.resume();
+      // Some Chromium builds suspend again right after getUserMedia; nudge once more.
+      if (ctx.state !== "running") await ctx.resume();
 
       const source = ctx.createMediaStreamSource(stream);
       const analyserNode = ctx.createAnalyser();
