@@ -180,7 +180,7 @@ async def capabilities() -> dict[str, Any]:
         "notes": [
             *status["notes"],
             "Two scores are never blended; hosts act on the verdict matrix.",
-            "Speaker verification / ECAPA is not part of Core v1.",
+            "Speaker verification is DSP voiceprint only (dsp_features_v1) — not ECAPA.",
             "gRPC SDKs are Phase later — REST + WebSocket for SIH.",
         ],
         "warming": _warming,
@@ -205,12 +205,57 @@ def _normalize_language(value: str | None) -> str | None:
     return value.strip().lower()
 
 
+def _parse_optional_bool(value: str | bool | None) -> bool | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _build_call_context(
+    known_contact: str | bool | None = None,
+    unknown_number: str | bool | None = None,
+    high_value: str | bool | None = None,
+    call_origin: str | None = None,
+) -> dict[str, Any] | None:
+    ctx: dict[str, Any] = {
+        "known_contact": _parse_optional_bool(known_contact),
+        "unknown_number": _parse_optional_bool(unknown_number),
+        "high_value": _parse_optional_bool(high_value),
+        "call_origin": (call_origin or "").strip() or None,
+    }
+    if all(v is None for v in ctx.values()):
+        return None
+    return ctx
+
+
+def _parse_enrollment_features(raw: str | None) -> dict[str, Any] | None:
+    if not raw or not str(raw).strip():
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 @app.post("/analyze")
 async def analyze(
     file: UploadFile = File(...),
     preset: str = Form("standard"),
     language: str | None = Form(None),
     want_transcript: bool = Form(True),
+    known_contact: str | None = Form(None),
+    unknown_number: str | None = Form(None),
+    high_value: str | None = Form(None),
+    call_origin: str | None = Form(None),
+    enrollment_features: str | None = Form(None),
 ) -> JSONResponse:
     payload = await file.read()
     if not payload:
@@ -225,6 +270,8 @@ async def analyze(
         return JSONResponse({"status": "error", "reason": str(exc)}, status_code=415)
 
     model_audio = await asyncio.to_thread(resample_to, native, native_rate, SAMPLE_RATE)
+    call_context = _build_call_context(known_contact, unknown_number, high_value, call_origin)
+    enrolled = _parse_enrollment_features(enrollment_features)
 
     result = await asyncio.to_thread(
         fusion.analyze,
@@ -238,6 +285,8 @@ async def analyze(
         None,
         None,
         bool(want_transcript),
+        call_context,
+        enrolled,
     )
     return JSONResponse(result.model_dump())
 
@@ -246,6 +295,10 @@ async def analyze(
 async def score_text(
     text: str = Form(...),
     preset: str = Form("standard"),
+    known_contact: str | None = Form(None),
+    unknown_number: str | None = Form(None),
+    high_value: str | None = Form(None),
+    call_origin: str | None = Form(None),
 ) -> JSONResponse:
     """Score fraud from transcript/captions alone — no audio required.
 
@@ -258,8 +311,9 @@ async def score_text(
             {"status": "error", "reason": "Need a few words to score."},
             status_code=400,
         )
+    call_context = _build_call_context(known_contact, unknown_number, high_value, call_origin)
     result = await asyncio.to_thread(
-        fusion.score_text, cleaned, _normalize_preset(preset)
+        fusion.score_text, cleaned, _normalize_preset(preset), call_context
     )
     logger.info("Text score %s :: %s", fusion.summarize(result), cleaned[:80])
     return JSONResponse(result.model_dump())
@@ -276,6 +330,8 @@ class StreamSession:
         self.sample_rate = SAMPLE_RATE
         self.preset = "standard"
         self.language: str | None = None
+        self.call_context: dict[str, Any] | None = None
+        self.enrollment_features: dict[str, Any] | None = None
         self.buffer = np.zeros(0, dtype=np.float32)
         self.total_samples = 0
         self.samples_since_score = 0
@@ -287,6 +343,19 @@ class StreamSession:
             self.sample_rate = int(rate)
         self.preset = _normalize_preset(message.get("preset"))
         self.language = _normalize_language(message.get("language"))
+        self.call_context = _build_call_context(
+            message.get("known_contact"),
+            message.get("unknown_number"),
+            message.get("high_value"),
+            message.get("call_origin"),
+        )
+        enrolled = message.get("enrollment_features")
+        if isinstance(enrolled, dict):
+            self.enrollment_features = enrolled
+        elif isinstance(enrolled, str):
+            self.enrollment_features = _parse_enrollment_features(enrolled)
+        else:
+            self.enrollment_features = None
 
     def append(self, chunk: np.ndarray) -> None:
         if chunk.size == 0:
@@ -450,6 +519,8 @@ async def _score_and_send(
             int(STREAM_WINDOW_S * 1000),
             session.elapsed_ms,
             True,  # always return the transcript for the live UI
+            session.call_context,
+            session.enrollment_features,
         )
         await websocket.send_json(result.model_dump())
         if result.status == "ok":

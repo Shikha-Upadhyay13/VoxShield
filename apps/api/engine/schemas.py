@@ -105,6 +105,26 @@ class Meta(BaseModel):
     partial: bool | None = None
 
 
+class ContextOut(BaseModel):
+    """Host metadata enrichment — never blended into authenticity."""
+
+    known_contact: bool | None = None
+    unknown_number: bool | None = None
+    high_value: bool | None = None
+    call_origin: str | None = None
+    enrichment_boost: int = 0
+
+
+class IdentityOut(BaseModel):
+    """Lightweight DSP voiceprint — not ECAPA-TDNN."""
+
+    enrolled: bool = False
+    match_score: int | None = None
+    mismatch: bool | None = None
+    method: str = "dsp_features_v1"
+    note: str | None = None
+
+
 class AnalysisOut(BaseModel):
     status: Literal["ok"] = "ok"
     verdict: Verdict
@@ -112,6 +132,8 @@ class AnalysisOut(BaseModel):
     authenticity: Authenticity
     fraud: Fraud
     meta: Meta
+    context: ContextOut | None = None
+    identity: IdentityOut | None = None
 
 
 class InsufficientOut(BaseModel):

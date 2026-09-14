@@ -7,6 +7,7 @@ import { extractFeatures, scoreFromFeatures } from "@/lib/scoring";
 import type {
   ContextFlags,
   EngineResponse,
+  Enrollment,
   ThresholdPreset,
 } from "@/lib/types";
 
@@ -14,6 +15,7 @@ interface StreamOptions {
   context: ContextFlags;
   preset: ThresholdPreset;
   language?: string | null;
+  enrollment?: Enrollment | null;
   onLevel: (level: number) => void;
   onResult: (result: EngineResponse, tMs: number) => void;
   onNotice: (message: string | null) => void;
@@ -114,6 +116,13 @@ export function useLiveStream() {
           sampleRate: ctx.sampleRate,
           preset: options.preset,
           language: options.language ?? null,
+          context: {
+            unknownNumber: options.context.unknownNumber,
+            knownContact: !options.context.unknownNumber && !options.context.firstTimeCaller,
+            highValue: options.preset === "high_value",
+            callOrigin: options.context.unknownNumber ? "unknown" : "saved_contact",
+          },
+          enrollmentFeatures: options.enrollment?.features ?? null,
         },
         {
           onResult: (result) => {

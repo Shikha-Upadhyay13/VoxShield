@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from . import ENGINE_VERSION, stage1_neural, stage2_fraud
+from . import ENGINE_VERSION, identity as identity_mod, stage1_neural, stage2_fraud
 from .audio_io import check_sufficiency
 from .config import SAMPLE_RATE, settings
 from .lexicon import format_inr
@@ -24,8 +24,10 @@ from .schemas import (
     AuthenticityComponents,
     Band,
     ClassifierComponent,
+    ContextOut,
     Fraud,
     FraudComponents,
+    IdentityOut,
     InsufficientOut,
     LexiconComponent,
     MatchedTerm,
@@ -111,6 +113,56 @@ def _insufficient(reason: str, audio_ms: int, started: float) -> InsufficientOut
     )
 
 
+def _parse_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def build_context(raw: dict[str, Any] | None) -> ContextOut | None:
+    if not raw:
+        return None
+    known = _parse_bool(raw.get("known_contact"))
+    unknown = _parse_bool(raw.get("unknown_number"))
+    high_value = _parse_bool(raw.get("high_value"))
+    origin = raw.get("call_origin")
+    origin_s = str(origin).strip() if origin else None
+    if not any(v is not None for v in (known, unknown, high_value)) and not origin_s:
+        return None
+    boost = 0
+    if unknown:
+        boost += 6
+    if known is False:
+        boost += 5
+    if high_value:
+        boost += 4
+    if origin_s and "unknown" in origin_s.lower():
+        boost += 3
+    boost = min(15, boost)
+    return ContextOut(
+        known_contact=known,
+        unknown_number=unknown,
+        high_value=high_value,
+        call_origin=origin_s or None,
+        enrichment_boost=boost,
+    )
+
+
+def apply_context_boost(fraud_score: int, context: ContextOut | None) -> int:
+    if not context or context.enrichment_boost <= 0:
+        return fraud_score
+    return min(100, fraud_score + int(context.enrichment_boost))
+
+
 def analyze(
     samples: np.ndarray,
     sample_rate: int = SAMPLE_RATE,
@@ -122,10 +174,14 @@ def analyze(
     window_ms: int | None = None,
     t_ms: int | None = None,
     want_transcript: bool = False,
+    call_context: dict[str, Any] | None = None,
+    enrollment_features: dict[str, Any] | None = None,
 ) -> AnalysisOut | InsufficientOut:
     """Run both stages and assemble the ENGINE.md Section 7 payload."""
     started = time.perf_counter()
     audio_ms = int(1000 * samples.size / sample_rate) if sample_rate else 0
+    context = build_context(call_context)
+    enrolled = identity_mod.normalize_enrollment(enrollment_features)
 
     gate_cfg = dict(settings.gate)
     if streaming:
@@ -140,7 +196,7 @@ def analyze(
         return _insufficient(gate.reason, gate.duration_ms, started)
 
     # ---- Stage 1: acoustic signals -------------------------------------------------
-    readings, _track = extract_signals(
+    readings, track = extract_signals(
         samples,
         sample_rate,
         settings.dsp,
@@ -150,6 +206,7 @@ def analyze(
     dsp_score, _skipped = weighted_suspicion(
         readings, settings.stage1.get("signal_weights", {})
     )
+    identity = identity_mod.compare(enrolled, identity_mod.live_features(track, readings))
 
     # ---- Stage 1: neural pair ------------------------------------------------------
     neural = stage1_neural.score_audio(samples, sample_rate)
@@ -192,6 +249,7 @@ def analyze(
     authenticity_score = int(round(100 * min(1.0, max(0.0, authenticity_raw))))
 
     fraud_score = int(round(100 * min(1.0, max(0.0, fraud_assessment.score))))
+    fraud_score = apply_context_boost(fraud_score, context)
 
     # ---- Bands and verdict ---------------------------------------------------------
     auth_thresholds = dict(settings.thresholds(preset, "authenticity"))
@@ -286,10 +344,16 @@ def analyze(
             t_ms=t_ms,
             partial=True if streaming else None,
         ),
+        context=context,
+        identity=identity if enrolled else IdentityOut(enrolled=False, method=identity_mod.METHOD),
     )
 
 
-def score_text(text: str, preset: str = "standard") -> AnalysisOut:
+def score_text(
+    text: str,
+    preset: str = "standard",
+    call_context: dict[str, Any] | None = None,
+) -> AnalysisOut:
     """Stage 2 only — score spoken/typed words without audio.
 
     Used by the live monitor: browser captions arrive immediately, while Whisper on
@@ -299,8 +363,9 @@ def score_text(text: str, preset: str = "standard") -> AnalysisOut:
     """
     started = time.perf_counter()
     cleaned = (text or "").strip()
+    context = build_context(call_context)
     assessment = stage2_fraud.assess_fraud(Transcript(cleaned, None, bool(cleaned)))
-    fraud_score = int(round(100 * assessment.score))
+    fraud_score = apply_context_boost(int(round(100 * assessment.score)), context)
     auth_thresholds = settings.thresholds(preset, "authenticity")
     fraud_thresholds = settings.thresholds(preset, "fraud")
     authenticity_score = 0
@@ -349,7 +414,6 @@ def score_text(text: str, preset: str = "standard") -> AnalysisOut:
         ),
         signals=[],
         degraded=True,
-        notes=["Text-only fraud score from live captions / transcript."],
     )
 
     return AnalysisOut(
@@ -364,6 +428,8 @@ def score_text(text: str, preset: str = "standard") -> AnalysisOut:
             engine_version=ENGINE_VERSION,
             partial=True,
         ),
+        context=context,
+        identity=None,
     )
 
 

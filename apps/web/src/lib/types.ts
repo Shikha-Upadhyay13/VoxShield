@@ -88,6 +88,22 @@ export interface EngineMeta {
   partial?: boolean | null;
 }
 
+export interface EngineContext {
+  known_contact?: boolean | null;
+  unknown_number?: boolean | null;
+  high_value?: boolean | null;
+  call_origin?: string | null;
+  enrichment_boost?: number;
+}
+
+export interface EngineIdentity {
+  enrolled: boolean;
+  match_score: number | null;
+  mismatch: boolean | null;
+  method: string;
+  note?: string | null;
+}
+
 export interface EngineOk {
   status: "ok";
   verdict: Verdict;
@@ -95,6 +111,8 @@ export interface EngineOk {
   authenticity: EngineAuthenticity;
   fraud: EngineFraud;
   meta: EngineMeta;
+  context?: EngineContext | null;
+  identity?: EngineIdentity | null;
   source?: EngineSource;
 }
 
@@ -241,6 +259,9 @@ export interface Incident {
   result: AnalysisResult;
   action?: OperationsAction;
   actionReason?: string;
+  /** Feature-only audit seal (SHA-256 hex). */
+  integrityHash?: string;
+  verdict?: Verdict;
 }
 
 export interface LiveSession {
@@ -258,7 +279,14 @@ export interface Enrollment {
   name: string;
   relation: string;
   enrolledAt: string;
-  features: { pitch: number; centroid: number; flatness: number };
+  features: {
+    pitch: number;
+    pitch_std: number;
+    centroid: number;
+    flatness: number;
+    rolloff?: number;
+    highFreqRatio?: number;
+  };
 }
 
 export interface Scenario {

@@ -12,6 +12,7 @@ import type {
   ContextFlags,
   EngineHealth,
   EngineResponse,
+  Enrollment,
   ThresholdPreset,
 } from "@/lib/types";
 
@@ -58,6 +59,7 @@ export function useEngine() {
         context: ContextFlags;
         language?: string | null;
         decoded?: AudioBuffer;
+        enrollment?: Enrollment | null;
       },
     ): Promise<{ result: EngineResponse; usedFallback: boolean; error?: string }> => {
       try {
@@ -65,6 +67,13 @@ export function useEngine() {
           preset: options.preset,
           language: options.language ?? null,
           wantTranscript: true,
+          context: {
+            unknownNumber: options.context.unknownNumber,
+            knownContact: !options.context.unknownNumber && !options.context.firstTimeCaller,
+            highValue: options.preset === "high_value",
+            callOrigin: options.context.unknownNumber ? "unknown" : "saved_contact",
+          },
+          enrollmentFeatures: options.enrollment?.features ?? null,
         });
         if (mounted.current) setState("online");
         return { result, usedFallback: false };

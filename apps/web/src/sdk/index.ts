@@ -94,12 +94,38 @@ export async function fetchHealth(
   }
 }
 
+export interface CallContextInput {
+  knownContact?: boolean | null;
+  unknownNumber?: boolean | null;
+  highValue?: boolean | null;
+  callOrigin?: string | null;
+}
+
+export interface EnrollmentFeatures {
+  pitch: number;
+  pitch_std: number;
+  centroid: number;
+  flatness: number;
+  rolloff?: number;
+  highFreqRatio?: number;
+}
+
 export interface AnalyzeOptions {
   preset?: ThresholdPreset;
   language?: string | null;
   wantTranscript?: boolean;
   timeoutMs?: number;
   base?: string;
+  context?: CallContextInput;
+  enrollmentFeatures?: EnrollmentFeatures | null;
+}
+
+function appendContext(form: FormData, context?: CallContextInput) {
+  if (!context) return;
+  if (context.knownContact != null) form.append("known_contact", String(context.knownContact));
+  if (context.unknownNumber != null) form.append("unknown_number", String(context.unknownNumber));
+  if (context.highValue != null) form.append("high_value", String(context.highValue));
+  if (context.callOrigin) form.append("call_origin", context.callOrigin);
 }
 
 /** POST /analyze — multipart clip → authenticity + fraud + verdict. */
@@ -113,6 +139,10 @@ export async function analyze(
   form.append("preset", options.preset ?? "standard");
   if (options.language) form.append("language", options.language);
   form.append("want_transcript", String(options.wantTranscript ?? true));
+  appendContext(form, options.context);
+  if (options.enrollmentFeatures) {
+    form.append("enrollment_features", JSON.stringify(options.enrollmentFeatures));
+  }
 
   return withTimeout(async (signal) => {
     const response = await fetch(`${baseUrl(options.base)}/analyze`, {
@@ -141,11 +171,17 @@ export const analyzeBlob = analyze;
 /** POST /score-text — fraud from captions / transcript alone. */
 export async function scoreText(
   text: string,
-  options: { preset?: ThresholdPreset; timeoutMs?: number; base?: string } = {},
+  options: {
+    preset?: ThresholdPreset;
+    timeoutMs?: number;
+    base?: string;
+    context?: CallContextInput;
+  } = {},
 ): Promise<EngineOk> {
   const form = new FormData();
   form.append("text", text);
   form.append("preset", options.preset ?? "standard");
+  appendContext(form, options.context);
 
   return withTimeout(async (signal) => {
     const response = await fetch(`${baseUrl(options.base)}/score-text`, {
@@ -183,6 +219,8 @@ export interface StreamConfig {
   /** Use `/ws/call-stream/{id}` instead of `/stream`. */
   callId?: string;
   base?: string;
+  context?: CallContextInput;
+  enrollmentFeatures?: EnrollmentFeatures | null;
 }
 
 /**
@@ -233,12 +271,18 @@ export class EngineStream {
 
       socket.onopen = () => {
         this.opened = true;
+        const ctx = this.config.context;
         socket.send(
           JSON.stringify({
             type: "start",
             sample_rate: Math.round(this.config.sampleRate),
             preset: this.config.preset ?? "standard",
             language: this.config.language ?? null,
+            known_contact: ctx?.knownContact ?? null,
+            unknown_number: ctx?.unknownNumber ?? null,
+            high_value: ctx?.highValue ?? null,
+            call_origin: ctx?.callOrigin ?? null,
+            enrollment_features: this.config.enrollmentFeatures ?? null,
           }),
         );
         for (const buffer of this.pending) socket.send(buffer);
