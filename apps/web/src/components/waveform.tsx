@@ -5,9 +5,11 @@ import { useEffect, useRef } from "react";
 export function Waveform({
   analyser,
   idle = false,
+  threat = false,
 }: {
   analyser: AnalyserNode | null;
   idle?: boolean;
+  threat?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -19,6 +21,8 @@ export function Waveform({
 
     let raf = 0;
     const buffer = analyser ? new Uint8Array(analyser.fftSize) : new Uint8Array(1024);
+    const strokeIdle = threat ? "rgba(239,68,68,0.35)" : "rgba(126,224,199,0.28)";
+    const strokeLive = threat ? "rgba(239,68,68,0.95)" : "rgba(126,224,199,0.9)";
 
     const draw = (t: number) => {
       const dpr = window.devicePixelRatio || 1;
@@ -31,7 +35,7 @@ export function Waveform({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
 
-      ctx.fillStyle = "rgba(232,237,244,0.025)";
+      ctx.fillStyle = threat ? "rgba(239,68,68,0.06)" : "rgba(232,237,244,0.025)";
       ctx.fillRect(0, 0, width, height);
 
       if (analyser && !idle) {
@@ -43,8 +47,8 @@ export function Waveform({
       }
 
       ctx.beginPath();
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = idle ? "rgba(126,224,199,0.28)" : "rgba(126,224,199,0.9)";
+      ctx.lineWidth = threat ? 2 : 1.6;
+      ctx.strokeStyle = idle ? strokeIdle : strokeLive;
       const step = width / buffer.length;
       for (let i = 0; i < buffer.length; i += 1) {
         const v = (buffer[i] ?? 128) / 128;
@@ -65,7 +69,7 @@ export function Waveform({
 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [analyser, idle]);
+  }, [analyser, idle, threat]);
 
   return (
     <canvas
@@ -79,9 +83,11 @@ export function Waveform({
 export function SpectrogramBars({
   analyser,
   idle = false,
+  threat = false,
 }: {
   analyser: AnalyserNode | null;
   idle?: boolean;
+  threat?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -118,14 +124,17 @@ export function SpectrogramBars({
         const idx = Math.floor((i / bars) * bins.length);
         const mag = (bins[idx] ?? 0) / 255;
         const h = Math.max(3, mag * height);
-        ctx.fillStyle = `rgba(126,224,199,${0.18 + mag * 0.7})`;
+        ctx.fillStyle = threat
+          ? `rgba(239,68,68,${0.22 + mag * 0.7})`
+          : `rgba(126,224,199,${0.18 + mag * 0.7})`;
         ctx.fillRect(i * (bw + gap), height - h, bw, h);
       }
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [analyser, idle]);
+  }, [analyser, idle, threat]);
 
   return <canvas ref={canvasRef} className="h-16 w-full rounded-lg" aria-hidden />;
 }
+
