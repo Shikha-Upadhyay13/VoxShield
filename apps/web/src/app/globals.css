@@ -208,6 +208,174 @@ body {
   50% { opacity: 0.7; transform: scale(1.04); }
 }
 
+/* CSS 3D phone mock (console / hero) */
+.phone-stage {
+  perspective: 1100px;
+  min-height: 420px;
+  padding: 1.5rem 0 2rem;
+}
+
+.phone-glow {
+  background:
+    radial-gradient(ellipse 55% 45% at 50% 55%, rgba(124, 232, 204, 0.14), transparent 70%),
+    radial-gradient(ellipse 40% 35% at 60% 40%, rgba(239, 68, 68, 0.1), transparent 65%);
+  filter: blur(2px);
+}
+
+.phone-orbit {
+  transform-style: preserve-3d;
+  animation: phone-float 7s ease-in-out infinite;
+}
+
+.phone-body {
+  position: relative;
+  width: 220px;
+  height: 440px;
+  transform-style: preserve-3d;
+  transform: rotateY(-18deg) rotateX(8deg);
+  animation: phone-tilt 9s ease-in-out infinite;
+}
+
+.phone-bezel {
+  position: absolute;
+  inset: 0;
+  border-radius: 36px;
+  background: linear-gradient(145deg, #2a3240 0%, #12161e 40%, #0a0d12 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 30px 60px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transform: translateZ(14px);
+  overflow: hidden;
+}
+
+.phone-notch {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 2;
+  width: 72px;
+  height: 18px;
+  transform: translateX(-50%);
+  border-radius: 99px;
+  background: #05070b;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.phone-screen {
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(124, 232, 204, 0.12), transparent 45%),
+    linear-gradient(180deg, #0c121a 0%, #070a10 100%);
+  padding: 1.6rem 0.9rem 0.9rem;
+}
+
+.phone-status {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-avatar {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid rgba(124, 232, 204, 0.35);
+  background: rgba(124, 232, 204, 0.1);
+  animation: phone-pulse 2.8s ease-in-out infinite;
+}
+
+.phone-risk {
+  border-radius: 16px;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  padding: 0.75rem;
+}
+
+.phone-risk-bar {
+  animation: phone-bar 3.2s ease-in-out infinite;
+}
+
+.phone-side {
+  position: absolute;
+  background: #151a22;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.phone-side-l {
+  width: 12px;
+  height: 100%;
+  left: 0;
+  top: 0;
+  transform: rotateY(90deg) translateZ(6px) translateX(-6px);
+  border-radius: 4px;
+}
+
+.phone-side-r {
+  width: 12px;
+  height: 100%;
+  right: 0;
+  top: 0;
+  transform: rotateY(-90deg) translateZ(6px) translateX(6px);
+  border-radius: 4px;
+}
+
+.phone-side-t {
+  width: 100%;
+  height: 12px;
+  left: 0;
+  top: 0;
+  transform: rotateX(-90deg) translateZ(6px) translateY(-6px);
+  border-radius: 4px;
+}
+
+.phone-side-b {
+  width: 100%;
+  height: 12px;
+  left: 0;
+  bottom: 0;
+  transform: rotateX(90deg) translateZ(6px) translateY(6px);
+  border-radius: 4px;
+  background: #0d1118;
+}
+
+@keyframes phone-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes phone-tilt {
+  0%, 100% { transform: rotateY(-18deg) rotateX(8deg); }
+  50% { transform: rotateY(-10deg) rotateX(5deg); }
+}
+
+@keyframes phone-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 232, 204, 0.25); }
+  50% { box-shadow: 0 0 0 10px rgba(124, 232, 204, 0); }
+}
+
+@keyframes phone-bar {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.25); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-orbit,
+  .phone-body,
+  .phone-avatar,
+  .phone-risk-bar {
+    animation: none;
+  }
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #263140; border-radius: 99px; }
 ::-webkit-scrollbar-track { background: transparent; }
