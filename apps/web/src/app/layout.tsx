@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import { AppShell } from "@/components/app-shell";
 import { PwaRegister } from "@/components/pwa-register";
+import { PreferencesProvider } from "@/store/preferences-provider";
 import { SessionProvider } from "@/store/session-provider";
 import "./globals.css";
 
@@ -49,13 +50,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var p=JSON.parse(localStorage.getItem("voxshield.prefs.v1")||"{}");var t=p.theme==="light"?"light":"dark";document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.dataset.theme="dark";}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full overflow-x-hidden pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-        <SessionProvider>
-          <PwaRegister />
-          <AppShell>{children}</AppShell>
-        </SessionProvider>
+        <PreferencesProvider>
+          <SessionProvider>
+            <PwaRegister />
+            <AppShell>{children}</AppShell>
+          </SessionProvider>
+        </PreferencesProvider>
       </body>
     </html>
   );

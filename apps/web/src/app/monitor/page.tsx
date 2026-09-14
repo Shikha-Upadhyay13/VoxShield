@@ -21,6 +21,7 @@ import { ensureNotificationPermission, isThreatVerdict, notifyThreat } from "@/l
 import { useEngine } from "@/hooks/use-engine";
 import { useLiveCaptions } from "@/hooks/use-live-captions";
 import { useLiveStream } from "@/hooks/use-live-stream";
+import { usePreferences } from "@/store/preferences-provider";
 import { useSession } from "@/store/session-provider";
 import { VERDICT_COPY, type EngineOk, type EngineResponse, type Verdict } from "@/lib/types";
 
@@ -56,6 +57,7 @@ function pickVerdict(auth: number, fraud: number): Verdict {
 export default function MonitorPage() {
   const { context, setContext, preset, session, startSession, updateLive, stopSession, enrollment } =
     useSession();
+  const { features } = usePreferences();
   const engine = useEngine();
   const live = useLiveStream();
 
@@ -66,7 +68,7 @@ export default function MonitorPage() {
   );
   const [result, setResult] = useState<EngineOk | null>(null);
   const [insufficient, setInsufficient] = useState<string | null>(null);
-  const captions = useLiveCaptions(session.active);
+  const captions = useLiveCaptions(session.active && features.liveCaptions);
   const lastScoredText = useRef("");
   const lastNotified = useRef<string>("");
   const scoreAbort = useRef<AbortController | null>(null);
@@ -203,11 +205,16 @@ export default function MonitorPage() {
     engine.state,
   ]);
 
-  // Threat notifications + auto-cut on critical.
+  // Threat notifications + auto-cut on critical (respect Settings).
   useEffect(() => {
     if (!result || phase === "cut") return;
     const key = `${result.verdict}:${result.fraud.score}`;
-    if (isThreatVerdict(result.verdict) && key !== lastNotified.current) {
+    if (
+      features.threatAlerts &&
+      features.notifications &&
+      isThreatVerdict(result.verdict) &&
+      key !== lastNotified.current
+    ) {
       lastNotified.current = key;
       void notifyThreat({
         verdict: result.verdict,
@@ -215,12 +222,16 @@ export default function MonitorPage() {
         summary: result.fraud.transcript || undefined,
       });
     }
-    if (result.verdict === "critical") {
+    if (features.autoCut && result.verdict === "critical") {
       cutCall("Call blocked by VoxShield — critical clone + scam speech.");
     }
-  }, [result, phase, cutCall]);
+  }, [result, phase, cutCall, features.autoCut, features.threatAlerts, features.notifications]);
 
   async function beginListening() {
+    if (!features.microphone) {
+      setNotice("Microphone is off in Settings — turn it on under Permissions / Features.");
+      return;
+    }
     setBusy(true);
     setResult(null);
     setInsufficient(null);
@@ -229,7 +240,9 @@ export default function MonitorPage() {
     captions.clear();
     lastScoredText.current = "";
     lastNotified.current = "";
-    void ensureNotificationPermission();
+    if (features.notifications || features.threatAlerts) {
+      void ensureNotificationPermission();
+    }
     try {
       if (engine.state === "offline" || engine.health?.warming) {
         setNotice("Engine waking up… retrying health before the mic opens.");
