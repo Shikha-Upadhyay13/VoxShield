@@ -282,14 +282,21 @@ body {
 }
 
 .phone-stage--hero .phone-body {
-  width: 210px;
-  height: 428px;
+  width: 220px;
+  height: 448px;
+}
+
+@media (min-width: 1024px) {
+  .phone-stage--hero .phone-body {
+    width: 248px;
+    height: 502px;
+  }
 }
 
 @media (min-width: 1280px) {
   .phone-stage--hero .phone-body {
-    width: 236px;
-    height: 478px;
+    width: 260px;
+    height: 528px;
   }
 }
 
