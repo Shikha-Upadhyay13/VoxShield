@@ -50,13 +50,13 @@ export default function HomePage() {
               centres, and calling apps integrate the same Core — they do not reimplement detection.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Link href="/guide" className="btn-primary">
+              <Link href="/demo" className="btn-primary">
+                Run judge demo
+                <ArrowRight size={16} />
+              </Link>
+              <Link href="/guide" className="btn-ghost">
                 View API contract
                 <Code2 size={16} />
-              </Link>
-              <Link href="/adapters/bank" className="btn-ghost">
-                Open demo adapters
-                <ArrowRight size={16} />
               </Link>
             </div>
             <div className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-[var(--line)] pt-6">
@@ -142,6 +142,7 @@ export default function HomePage() {
         <footer className="mt-16 flex flex-col gap-3 border-t border-[var(--line)] pt-8 text-xs text-[var(--faint)] sm:flex-row sm:justify-between">
           <span>VoxShield Core · SIH26104 · AICTE Cyber Security Cell</span>
           <span className="flex gap-4">
+            <Link href="/demo">Judge demo</Link>
             <Link href="/guide">How it works</Link>
             <Link href="/monitor">Call adapter</Link>
             <Link href="/adapters/bank">Bank adapter</Link>

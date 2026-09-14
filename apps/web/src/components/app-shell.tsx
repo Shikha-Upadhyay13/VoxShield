@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Menu,
   Phone,
+  Sparkles,
   Upload,
   X,
 } from "lucide-react";
@@ -26,7 +27,7 @@ import { ModeSwitch } from "./mode-switch";
 
 /** Primary phone nav — Core story + two adapters */
 const PRIMARY = [
-  { href: "/guide", label: "Core", icon: Info },
+  { href: "/demo", label: "Demo", icon: Sparkles },
   { href: "/monitor", label: "Call", icon: Phone },
   { href: "/adapters/bank", label: "Bank", icon: Building2 },
 ];
@@ -36,6 +37,7 @@ const NAV_GROUPS = [
     label: "Product",
     items: [
       { href: "/guide", label: "VoxShield Core", icon: Info },
+      { href: "/demo", label: "Judge demo", icon: Sparkles },
       { href: "/monitor", label: "Call adapter (demo)", icon: Phone },
       { href: "/adapters/bank", label: "Bank adapter (demo)", icon: Building2 },
     ],
