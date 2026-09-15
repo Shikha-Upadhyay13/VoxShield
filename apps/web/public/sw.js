@@ -1,7 +1,7 @@
 /* VoxShield service worker — cache the app shell; never touch live audio streams. */
 
-const CACHE = "voxshield-shell-v1";
-const PRECACHE = ["/", "/monitor", "/protect", "/manifest.webmanifest", "/icons/icon.svg"];
+const CACHE = "voxshield-shell-v2";
+const PRECACHE = ["/manifest.webmanifest", "/icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -22,22 +22,36 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  // Never cache API / engine traffic.
-  if (url.pathname.startsWith("/api/")) return;
+  // Never cache API / engine traffic, the worker itself, or Next HMR.
+  if (url.pathname.startsWith("/api/") || url.pathname === "/sw.js" || url.pathname.startsWith("/_next/")) return;
 
+  const isDocument = request.mode === "navigate" || request.destination === "document";
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok && request.destination !== "") {
+    (async () => {
+      if (isDocument) {
+        try {
+          const response = await fetch(request);
+          if (response.ok) {
             const copy = response.clone();
             void caches.open(CACHE).then((cache) => cache.put(request, copy));
           }
           return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    }),
+        } catch {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          throw new Error("offline");
+        }
+      }
+
+      const cached = await caches.match(request);
+      if (cached) return cached;
+      const response = await fetch(request);
+      if (response.ok) {
+        const copy = response.clone();
+        void caches.open(CACHE).then((cache) => cache.put(request, copy));
+      }
+      return response;
+    })(),
   );
 });
 
