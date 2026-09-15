@@ -41,7 +41,7 @@ export default function HomePage() {
           </div>
         </header>
 
-        <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-6 py-10 sm:px-10 lg:grid lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:gap-16 lg:px-12 lg:py-0 xl:gap-20">
+        <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-6 py-10 sm:px-10 lg:grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.15fr)] lg:items-center lg:gap-10 lg:px-12 lg:py-0 xl:gap-8">
           <div className="max-w-2xl">
             <h1 className="font-serif text-5xl leading-[1.02] tracking-tight text-[var(--text)] sm:text-6xl lg:text-7xl xl:text-[5.25rem]">
               VoxShield
@@ -62,7 +62,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="mt-12 flex justify-center lg:mt-0 lg:justify-end">
+          <div className="relative mt-12 flex justify-center overflow-visible lg:mt-0 lg:justify-center">
             <PhoneMock3D className="phone-stage--hero" />
           </div>
         </section>
