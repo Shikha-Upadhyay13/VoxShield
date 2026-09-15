@@ -69,7 +69,7 @@ export interface EngineFraud {
   transcript_available: boolean;
   components: {
     classifier: { score: number | null; model: string | null };
-    lexicon: { score: number | null; categories: string[] };
+    lexicon: { score: number | null; categories: string[]; intents?: string[] };
     amount: { score: number | null; detected_inr: number | null; raw: string | null };
   };
   matched_terms: EngineMatchedTerm[];

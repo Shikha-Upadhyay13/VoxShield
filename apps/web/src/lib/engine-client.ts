@@ -129,7 +129,7 @@ export function legacyToEngine(
       transcript_available: false,
       components: {
         classifier: { score: null, model: null },
-        lexicon: { score: null, categories: [] },
+        lexicon: { score: null, categories: [], intents: [] },
         amount: { score: null, detected_inr: null, raw: null },
       },
       matched_terms: [],
@@ -201,7 +201,7 @@ export function engineToLegacy(response: EngineResponse): AnalysisResult {
       context: {
         score: fraud.score / 100,
         reasons: fraud.matched_terms.length
-          ? [`Fraud keywords: ${fraud.matched_terms.map((t) => t.term).join(", ")}`]
+          ? [`Fraud signals: ${fraud.matched_terms.map((t) => t.term).join(", ")}`]
           : [],
       },
     },

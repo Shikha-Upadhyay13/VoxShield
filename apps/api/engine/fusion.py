@@ -52,6 +52,13 @@ FRAUD_LABELS: dict[str, str] = {
     "high": "Fraud indicators present",
 }
 
+# Asking for any OTP/PIN, including a Hotstar/Prime login, is harmless from a
+# human relative and the attack when the voice is a clone. Words cannot prove
+# where the OTP will be typed; Stage 1 (and a voiceprint mismatch) can.
+SECRET_ASK_INTENTS = frozenset(
+    {"solicit_secret", "entertainment_otp", "card_harvest", "kyc_freeze_threat"}
+)
+
 
 def band_for(score: int, thresholds: dict[str, int]) -> Band:
     if score >= int(thresholds["high"]):
@@ -296,6 +303,16 @@ def analyze(
             auth_thresholds["review"] = max(int(auth_thresholds["review"]), 60)
             auth_thresholds["high"] = max(int(auth_thresholds["high"]), 80)
     authenticity_band = band_for(authenticity_score, auth_thresholds)
+    intent_ids = [item.id for item in fraud_assessment.lexicon.intents]
+    secret_ask = bool(set(intent_ids) & SECRET_ASK_INTENTS)
+    clone_like = authenticity_score >= int(auth_thresholds["high"])
+    mismatch = bool(enrolled and identity.mismatch)
+    if secret_ask and (clone_like or mismatch):
+        fraud_score = max(fraud_score, int(fraud_thresholds["high"]))
+        fraud_assessment.notes.append(
+            "Voice looks synthetic or does not match the enrolled speaker while asking "
+            "for an OTP. A cloned relative can say Hotstar or Prime; the words are the camouflage."
+        )
     fraud_band = band_for(fraud_score, fraud_thresholds)
     verdict = decide_verdict(authenticity_score, fraud_score, auth_thresholds, fraud_thresholds)
 
@@ -346,6 +363,7 @@ def analyze(
             lexicon=LexiconComponent(
                 score=fraud_assessment.lexicon.score,
                 categories=fraud_assessment.lexicon.categories,
+                intents=[item.id for item in fraud_assessment.lexicon.intents],
             ),
             amount=AmountComponent(
                 score=amount.score,
@@ -424,6 +442,7 @@ def score_text(
             lexicon=LexiconComponent(
                 score=assessment.lexicon.score,
                 categories=assessment.lexicon.categories,
+                intents=[item.id for item in assessment.lexicon.intents],
             ),
             amount=AmountComponent(
                 score=amount.score,

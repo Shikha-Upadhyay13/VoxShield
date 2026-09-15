@@ -32,6 +32,7 @@ the same Core. We do not claim WhatsApp / Meet / Truecaller integration today.
 
 | Read this | For |
 |---|---|
+| **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** | What we built, models/stack, API/SDK, Truecaller-style / Flutter host demo |
 | **[docs/ENGINE.md](./docs/ENGINE.md)** | How detection actually works. Authoritative — where it and any other file disagree, it wins. |
 | [PRD.md](./PRD.md) | Product requirements, scope, personas, roadmap |
 | [demo/audio/README.md](./demo/audio/README.md) | What to record for calibration, and why the replay set is mandatory |
@@ -71,7 +72,7 @@ Set `VOXSHIELD_PROFILE` to trade accuracy for size / RAM:
 ### Deploy (Vercel UI + Render API)
 
 1. **API (Render)** — connect the repo, use [`render.yaml`](./render.yaml) (Docker root `apps/api`). Free plan ships `VOXSHIELD_PROFILE=mobile`. For authenticity neural scores, upgrade RAM and set `lite`.
-2. Set `ALLOWED_ORIGINS` to your Vercel URL (comma-separated).
+2. Set `ALLOWED_ORIGINS` to your Vercel URL (comma-separated). Set `VOXSHIELD_API_KEY` on the API and the same value as `NEXT_PUBLIC_VOXSHIELD_API_KEY` on Vercel if you lock scoring.
 3. **UI (Vercel)** — root directory `apps/web`, env `NEXT_PUBLIC_VOXSHIELD_API=https://YOUR-API.onrender.com`.
 4. **Keep warm** — ping `GET /health` every ~10 minutes (UptimeRobot or Vercel cron → `/api/keep-alive`). Free sleep drops WebSockets otherwise.
 5. On a phone: open the Vercel URL → Add to Home Screen → `/monitor` → Accept & protect.

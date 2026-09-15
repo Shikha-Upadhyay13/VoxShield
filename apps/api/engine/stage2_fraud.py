@@ -445,12 +445,20 @@ def assess_fraud(
     else:
         header = sender_header
 
-    classifier_score = (
-        _classifier.score(text, header or None) if text.strip() else None
+    notes: list[str] = []
+    entertainment_only = any(item.id == "entertainment_otp" for item in lexicon.intents) and not (
+        set(lexicon.categories) & {"credentials", "coercion", "secrecy", "money", "authority"}
     )
+    if entertainment_only:
+        classifier_score = None
+        notes.append(
+            "OTP ask is framed as an entertainment login, not a bank/UPI secret; "
+            "classifier is not treated as a harvest signal."
+        )
+    else:
+        classifier_score = _classifier.score(text, header or None) if text.strip() else None
     markers, words = count_disfluencies(text)
 
-    notes: list[str] = []
     components: list[tuple[float, float]] = []
 
     use_classifier = classifier_score is not None
@@ -477,6 +485,8 @@ def assess_fraud(
 
     if amount.amount_inr:
         notes.append(f"Amount requested: {format_inr(amount.amount_inr)}.")
+    for intent in lexicon.intents:
+        notes.append(intent.label[0].upper() + intent.label[1:] + ".")
     if not transcript.available:
         notes.append("No transcript, so fraud content could not be assessed.")
 

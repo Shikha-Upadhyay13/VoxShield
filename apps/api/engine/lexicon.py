@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Category weights. Higher means more diagnostic of fraud on its own.
 CATEGORY_WEIGHTS: dict[str, float] = {
@@ -21,14 +21,13 @@ CATEGORY_WEIGHTS: dict[str, float] = {
     "authority": 0.60,
 }
 
-# Terms are matched on word boundaries over normalized text. Hindi is included both
-# in Devanagari and in the Roman transliteration people actually speak and type.
+# Diagnostic phrases only. Isolated words like otp / kyc / transfer / send / money
+# are ordinary in genuine speech, so they never fire a category on their own — see
+# detect_intents() and AMBIGUOUS_UNIGRAMS.
 CATEGORY_TERMS: dict[str, list[str]] = {
     "credentials": [
-        "otp", "o t p", "one time password", "password", "passcode", "pin", "pin number",
-        "cvv", "upi pin", "mpin", "aadhaar", "aadhar", "pan card", "kyc", "verification code",
-        "net banking", "netbanking", "cvv number", "card number", "expiry date",
-        "otp batao", "otp bhejo", "password batao", "पासवर्ड", "ओटीपी", "आधार",
+        "cvv", "upi pin", "mpin", "net banking", "netbanking", "cvv number",
+        "card number", "expiry date", "otp batao", "otp bhejo", "password batao",
     ],
     "coercion": [
         "kill", "killed", "kidnap", "kidnapped", "kidnapping", "kid napped", "hostage",
@@ -69,15 +68,12 @@ CATEGORY_TERMS: dict[str, list[str]] = {
         "अभी", "जल्दी", "तुरंत",
     ],
     "money": [
-        "money", "transfer", "transfer money", "send money", "payment", "pay now",
-        "fees", "fine", "penalty", "deposit", "wire", "account number", "ifsc",
+        "transfer money", "send money", "pay now", "account number", "ifsc",
         "gpay", "google pay", "phonepe", "phone pe", "paytm", "upi", "bank transfer",
-        "neft", "imps", "rtgs", "refund", "processing fee",
-        "send", "send me", "bhej", "bhejo", "bhej do", "bhej dena", "transfer karo",
-        "paisa", "paise", "paise bhejo", "rupaye", "rupees", "paise chahiye",
-        "loan", "instant loan", "loan approval", "pre-approved", "customs duty",
+        "neft", "imps", "rtgs", "processing fee", "paise bhejo", "paise chahiye",
+        "instant loan", "loan approval", "pre-approved", "customs duty",
         "release fee", "pay karke", "get the money", "money together",
-        "how to transfer", "पैसा", "पैसे", "रुपये",
+        "how to transfer",
     ],
     "authority": [
         "cbi", "income tax", "customs", "rbi", "reserve bank", "trai", "epfo",
@@ -141,11 +137,21 @@ class MatchedTerm:
     term: str
 
 
+@dataclass(frozen=True)
+class IntentHit:
+    """A scam-shaped ask, not a lone keyword."""
+
+    id: str
+    category: str
+    label: str
+
+
 @dataclass
 class LexiconHit:
     score: float
     categories: list[str]
     terms: list[MatchedTerm]
+    intents: list[IntentHit] = field(default_factory=list)
 
 
 @dataclass
@@ -172,23 +178,403 @@ def _contains_term(haystack: str, term: str) -> bool:
     return re.search(pattern, haystack) is not None
 
 
+# Window in characters (~8–12 words). Intent is a nearby ask, not the whole transcript.
+_INTENT_SPAN = 56
+
+# These words appear in genuine speech. They must never raise a category unless an
+# intent frame (solicit a secret, coerce a payment, KYC-as-freeze) also matches.
+AMBIGUOUS_UNIGRAMS = frozenset(
+    {
+        "otp",
+        "o t p",
+        "kyc",
+        "pin",
+        "password",
+        "passcode",
+        "aadhaar",
+        "aadhar",
+        "pan card",
+        "verification code",
+        "one time password",
+        "pin number",
+        "credit card",
+        "debit card",
+        "money",
+        "transfer",
+        "send",
+        "send me",
+        "payment",
+        "deposit",
+        "refund",
+        "loan",
+        "fees",
+        "fine",
+        "penalty",
+        "wire",
+        "bhej",
+        "bhejo",
+        "bhej do",
+        "bhej dena",
+        "transfer karo",
+        "paisa",
+        "paise",
+        "rupaye",
+        "rupees",
+        "ओटीपी",
+        "पासवर्ड",
+        "आधार",
+        "पैसा",
+        "पैसे",
+        "रुपये",
+    }
+)
+
+_SECRET_NOUNS = [
+    "otp",
+    "o t p",
+    "one time password",
+    "verification code",
+    "pin",
+    "cvv",
+    "password",
+    "passcode",
+    "aadhaar",
+    "aadhar",
+    "card number",
+    "credit card",
+    "ओटीपी",
+    "पासवर्ड",
+    "आधार",
+]
+_SOLICIT_VERBS = [
+    "share",
+    "give me",
+    "give us",
+    "tell me",
+    "tell us",
+    "read out",
+    "confirm your",
+    "confirm the",
+    "batao",
+    "bataiye",
+    "bol do",
+    "send me",
+    "mujhe",
+    "bhejo",
+]
+_HARVEST_RE = re.compile(
+    r"\b(?:send|share|give|forward|bhej(?:o| do)?)\s+"
+    r"(?:me |us |your |the )?"
+    r"(?:otp|pin|cvv|password|passcode|aadhaar|aadhar|card number|"
+    r"verification code|one time password|credit card)\b"
+)
+_PROTECT_SECRET_RE = re.compile(
+    r"\b(?:do not|don't|dont|never)\s+(?:share|give|tell)\b|"
+    r"\bkisi ko mat (?:dena|batana)\b"
+)
+_FIRST_PERSON_RE = re.compile(r"\b(?:with me|to me|to us|mujhe|mujhko|hamen|hamein|mere ko)\b")
+
+_TRANSFER_VERBS = [
+    "transfer",
+    "transfer karo",
+    "send",
+    "send me",
+    "bhej",
+    "bhejo",
+    "bhej do",
+    "bhej dena",
+]
+_MONEY_CUES = [
+    "money",
+    "paisa",
+    "paise",
+    "rupees",
+    "rupaye",
+    "upi",
+    "gpay",
+    "google pay",
+    "phonepe",
+    "paytm",
+    "account number",
+    "bank account",
+    "my account",
+    "this account",
+    "ifsc",
+    "lakh",
+    "lac",
+    "hazaar",
+    "hazar",
+    "hajar",
+    "crore",
+    "payment",
+    "refund",
+    "fees",
+    "fine",
+    "bank",
+    "पैसा",
+    "पैसे",
+    "रुपये",
+]
+_BENIGN_TRANSFER_OBJECTS = [
+    "order",
+    "orders",
+    "notes",
+    "note",
+    "file",
+    "files",
+    "document",
+    "documents",
+    "meeting",
+    "call",
+    "shift",
+    "ticket",
+    "data",
+    "chat",
+    "message",
+    "ownership",
+    "report",
+    "ppt",
+    "deck",
+    "email",
+    "invite",
+    "invitation",
+    "photo",
+    "photos",
+]
+_KYC_THREAT_CUES = [
+    "pending",
+    "freeze",
+    "frozen",
+    "block",
+    "blocked",
+    "expire",
+    "expired",
+    "update",
+    "immediately",
+    "fail",
+    "failed",
+]
+_KYC_DONE_CUES = ["done", "completed", "verified", "already"]
+_CARD_HARVEST_CUES = ["cvv", "expiry", "otp", "pin", "share", "batao", "number"]
+_CARD_BENIGN_CUES = ["statement", "bill", "offer", "reward", "points", "due"]
+_ENTERTAINMENT_SERVICES = [
+    "hotstar",
+    "jiohotstar",
+    "jio cinema",
+    "jiocinema",
+    "netflix",
+    "prime video",
+    "amazon prime",
+    "disney",
+    "disney plus",
+    "zee5",
+    "sonyliv",
+    "sony liv",
+    "spotify",
+    "youtube premium",
+    "apple tv",
+    "aha",
+    "voot",
+    "mx player",
+]
+_FINANCIAL_OTP_CUES = [
+    "bank",
+    "upi",
+    "kyc",
+    "credit card",
+    "debit card",
+    "cvv",
+    "net banking",
+    "netbanking",
+    "ifsc",
+    "aadhaar",
+    "aadhar",
+    "wallet",
+    "paytm",
+    "gpay",
+    "phonepe",
+    "warrant",
+    "cbi",
+    "freeze",
+    "income tax",
+    "cyber cell",
+    "account number",
+]
+
+
+def _term_spans(normalized: str, term: str) -> list[tuple[int, int]]:
+    folded = normalize(term)
+    if not folded:
+        return []
+    pattern = r"(?<!\w)" + re.escape(folded) + r"(?!\w)"
+    return [(m.start(), m.end()) for m in re.finditer(pattern, normalized)]
+
+
+def _near(normalized: str, anchors: list[str], cues: list[str], span: int = _INTENT_SPAN) -> bool:
+    for anchor in anchors:
+        for start, end in _term_spans(normalized, anchor):
+            window = normalized[max(0, start - span) : end + span]
+            for cue in cues:
+                if _contains_term(window, normalize(cue)):
+                    return True
+    return False
+
+
+def _amount_in_window(window: str) -> bool:
+    return _SCALED_AMOUNT.search(window) is not None or _PLAIN_AMOUNT.search(window) is not None
+
+
+def _solicit_secret(normalized: str) -> bool:
+    asked = _HARVEST_RE.search(normalized) is not None or _near(
+        normalized, _SOLICIT_VERBS, _SECRET_NOUNS
+    )
+    if not asked:
+        return False
+    # Bank/OTP SMS: "Your OTP is 123456. Do not share it with anyone."
+    if _PROTECT_SECRET_RE.search(normalized) and not _FIRST_PERSON_RE.search(normalized):
+        return False
+    return True
+
+
+def _coerce_payment(normalized: str) -> bool:
+    if _near(normalized, _TRANSFER_VERBS, _MONEY_CUES):
+        return True
+    for verb in _TRANSFER_VERBS:
+        for start, end in _term_spans(normalized, verb):
+            window = normalized[max(0, start - _INTENT_SPAN) : end + _INTENT_SPAN]
+            if _amount_in_window(window):
+                return True
+    return False
+
+
+def _benign_transfer(normalized: str) -> bool:
+    """'Transfer the notes/order' is not a funds request unless money is also nearby."""
+    if not _near(normalized, _TRANSFER_VERBS, _BENIGN_TRANSFER_OBJECTS):
+        return False
+    if _near(normalized, _TRANSFER_VERBS, _MONEY_CUES):
+        return False
+    for verb in _TRANSFER_VERBS:
+        for start, end in _term_spans(normalized, verb):
+            window = normalized[max(0, start - _INTENT_SPAN) : end + _INTENT_SPAN]
+            if _amount_in_window(window):
+                return False
+    return True
+
+
+def _kyc_threat(normalized: str) -> bool:
+    if not _contains_term(normalized, "kyc"):
+        return False
+    if _near(normalized, ["kyc"], _KYC_DONE_CUES) and not _near(
+        normalized, ["kyc"], _KYC_THREAT_CUES
+    ):
+        return False
+    return _near(normalized, ["kyc"], _KYC_THREAT_CUES)
+
+
+def _card_harvest(normalized: str) -> bool:
+    cards = ["credit card", "debit card"]
+    if not any(_contains_term(normalized, name) for name in cards):
+        return False
+    if _near(normalized, cards, _CARD_BENIGN_CUES) and not _near(
+        normalized, cards, _CARD_HARVEST_CUES
+    ):
+        return False
+    return _near(normalized, cards, _CARD_HARVEST_CUES)
+
+
+def _entertainment_service(normalized: str) -> bool:
+    return any(_contains_term(normalized, name) for name in _ENTERTAINMENT_SERVICES) or (
+        _contains_term(normalized, "prime")
+        and (_contains_term(normalized, "otp") or _contains_term(normalized, "login"))
+    )
+
+
+def _financial_secret_frame(normalized: str) -> bool:
+    return any(_contains_term(normalized, cue) for cue in _FINANCIAL_OTP_CUES)
+
+
+def detect_intents(text: str) -> list[IntentHit]:
+    """Map a transcript to scam-shaped asks rather than keyword presence."""
+    normalized = normalize(text)
+    if not normalized:
+        return []
+
+    hits: list[IntentHit] = []
+    if _solicit_secret(normalized):
+        # Family: "send me the Hotstar OTP" is the same ask as a bank harvest.
+        # Words cannot prove where the OTP will be used — only the service named
+        # in this turn, plus Stage 1 (clone / voiceprint) on the live path.
+        if (
+            _entertainment_service(normalized)
+            and not _financial_secret_frame(normalized)
+            and not _kyc_threat(normalized)
+        ):
+            hits.append(
+                IntentHit(
+                    "entertainment_otp",
+                    "context",
+                    "asked for an entertainment login OTP (Hotstar/Prime/Netflix)",
+                )
+            )
+        else:
+            hits.append(
+                IntentHit(
+                    "solicit_secret",
+                    "credentials",
+                    "asked them to disclose a secret (OTP, PIN, password, or KYC)",
+                )
+            )
+    if _kyc_threat(normalized):
+        hits.append(
+            IntentHit(
+                "kyc_freeze_threat",
+                "credentials",
+                "used KYC as an account-freeze threat",
+            )
+        )
+    if _card_harvest(normalized):
+        hits.append(
+            IntentHit(
+                "card_harvest",
+                "credentials",
+                "asked for card number or CVV",
+            )
+        )
+    if _coerce_payment(normalized) and not _benign_transfer(normalized):
+        hits.append(
+            IntentHit(
+                "coerce_payment",
+                "money",
+                "asked them to move money, not notes or an order",
+            )
+        )
+    return hits
+
+
 def score_lexicon(text: str, single_category_multiplier: float = 0.55) -> LexiconHit:
-    """Weighted category scoring.
+    """Weighted category scoring driven by diagnostic phrases and intent frames.
 
     A category counts once no matter how many of its terms appear, so repetition
-    cannot inflate the score. A single category is discounted because one "money"
-    mention is ordinary conversation; it takes a combination to make a scam.
+    cannot inflate the score. Ambiguous unigrams (otp, kyc, transfer, send, money)
+    never count unless detect_intents() finds a matching ask. A single category is
+    still discounted because one real ask can be ordinary; it takes a combination to
+    make a scam.
     """
     normalized = normalize(text)
     if not normalized:
         return LexiconHit(0.0, [], [])
 
+    intents = detect_intents(text)
     hit_categories: list[str] = []
     matched: list[MatchedTerm] = []
+
     for category, terms in CATEGORY_TERMS.items():
         found: list[str] = []
         for term in terms:
-            if _contains_term(normalized, normalize(term)):
+            folded = normalize(term)
+            if folded in AMBIGUOUS_UNIGRAMS:
+                continue
+            if _contains_term(normalized, folded):
                 found.append(term)
         if found:
             hit_categories.append(category)
@@ -196,8 +582,15 @@ def score_lexicon(text: str, single_category_multiplier: float = 0.55) -> Lexico
             for term in sorted(found, key=len, reverse=True)[:3]:
                 matched.append(MatchedTerm(category, term))
 
+    for intent in intents:
+        if intent.category in CATEGORY_WEIGHTS and intent.category not in hit_categories:
+            hit_categories.append(intent.category)
+        # Intent labels are what a host should read aloud — not the bare keyword.
+        if not any(term.term == intent.label for term in matched):
+            matched.append(MatchedTerm(intent.category, intent.label))
+
     if not hit_categories:
-        return LexiconHit(0.0, [], [])
+        return LexiconHit(0.0, [], [], intents)
 
     # Saturate around two heavy categories (credentials + coercion ≈ 1.95) or three
     # mid-weight ones (secrecy + urgency + money = 2.15). Dividing by the sum of every
@@ -208,7 +601,7 @@ def score_lexicon(text: str, single_category_multiplier: float = 0.55) -> Lexico
     raw = sum(CATEGORY_WEIGHTS.get(c, 0.0) for c in hit_categories) / saturation
     if len(hit_categories) == 1:
         raw *= single_category_multiplier
-    return LexiconHit(min(1.0, raw), hit_categories, matched)
+    return LexiconHit(min(1.0, raw), hit_categories, matched, intents)
 
 
 def _to_number(raw: str) -> float | None:

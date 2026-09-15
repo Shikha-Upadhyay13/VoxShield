@@ -30,6 +30,27 @@ export function baseUrl(override?: string): string {
   return configured.replace(/\/$/, "");
 }
 
+/** Host key. Empty when Core is running without VOXSHIELD_API_KEY. */
+export function apiKey(override?: string): string {
+  return (
+    override?.trim() ||
+    process.env.NEXT_PUBLIC_VOXSHIELD_API_KEY?.trim() ||
+    ""
+  );
+}
+
+function authHeaders(key?: string): Record<string, string> {
+  const value = apiKey(key);
+  return value ? { "X-API-Key": value } : {};
+}
+
+function withApiKeyQuery(url: string, key?: string): string {
+  const value = apiKey(key);
+  if (!value) return url;
+  const join = url.includes("?") ? "&" : "?";
+  return `${url}${join}api_key=${encodeURIComponent(value)}`;
+}
+
 function wsBase(httpBase: string): string {
   return httpBase.replace(/^http/, "ws");
 }
@@ -118,6 +139,7 @@ export interface AnalyzeOptions {
   base?: string;
   context?: CallContextInput;
   enrollmentFeatures?: EnrollmentFeatures | null;
+  apiKey?: string;
 }
 
 function appendContext(form: FormData, context?: CallContextInput) {
@@ -148,6 +170,7 @@ export async function analyze(
     const response = await fetch(`${baseUrl(options.base)}/analyze`, {
       method: "POST",
       body: form,
+      headers: authHeaders(options.apiKey),
       signal,
     });
     if (!response.ok) {
@@ -176,6 +199,7 @@ export async function scoreText(
     timeoutMs?: number;
     base?: string;
     context?: CallContextInput;
+    apiKey?: string;
   } = {},
 ): Promise<EngineOk> {
   const form = new FormData();
@@ -187,6 +211,7 @@ export async function scoreText(
     const response = await fetch(`${baseUrl(options.base)}/score-text`, {
       method: "POST",
       body: form,
+      headers: authHeaders(options.apiKey),
       signal,
     });
     if (!response.ok) {
@@ -221,6 +246,7 @@ export interface StreamConfig {
   base?: string;
   context?: CallContextInput;
   enrollmentFeatures?: EnrollmentFeatures | null;
+  apiKey?: string;
 }
 
 /**
@@ -248,9 +274,12 @@ export class EngineStream {
     const http = baseUrl(this.config.base);
     const root = wsBase(http);
     if (this.config.callId) {
-      return `${root}/ws/call-stream/${encodeURIComponent(this.config.callId)}`;
+      return withApiKeyQuery(
+        `${root}/ws/call-stream/${encodeURIComponent(this.config.callId)}`,
+        this.config.apiKey,
+      );
     }
-    return `${root}/stream`;
+    return withApiKeyQuery(`${root}/stream`, this.config.apiKey);
   }
 
   connect(): Promise<void> {
@@ -283,6 +312,7 @@ export class EngineStream {
             high_value: ctx?.highValue ?? null,
             call_origin: ctx?.callOrigin ?? null,
             enrollment_features: this.config.enrollmentFeatures ?? null,
+            api_key: apiKey(this.config.apiKey) || null,
           }),
         );
         for (const buffer of this.pending) socket.send(buffer);

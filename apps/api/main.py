@@ -17,10 +17,11 @@ import contextlib
 import json
 import logging
 import os
+import secrets
 from typing import Any
 
 import numpy as np
-from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -36,6 +37,7 @@ from engine.config import (
     SAMPLE_RATE,
     STREAM_AUTH_WINDOW_S,
     STREAM_FAST_WINDOW_S,
+    configured_api_key,
     settings,
     stream_auth_every_n,
     stream_interval_s,
@@ -66,6 +68,63 @@ ALLOWED_ORIGINS = list(
     )
 )
 
+
+def _provided_api_key(
+    *,
+    header_key: str | None = None,
+    authorization: str | None = None,
+    query_key: str | None = None,
+    body_key: str | None = None,
+) -> str:
+    if header_key and header_key.strip():
+        return header_key.strip()
+    auth = (authorization or "").strip()
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    if query_key and query_key.strip():
+        return query_key.strip()
+    if body_key and str(body_key).strip():
+        return str(body_key).strip()
+    return ""
+
+
+def api_key_matches(provided: str | None) -> bool:
+    expected = configured_api_key()
+    if not expected:
+        return True
+    got = (provided or "").strip()
+    if not got or len(got) != len(expected):
+        return False
+    return secrets.compare_digest(got, expected)
+
+
+def require_host_key(request: Request) -> None:
+    """Protect scoring endpoints when VOXSHIELD_API_KEY is set.
+
+    GET /health and GET /v1/capabilities stay open so hosts can wait for warmup.
+    """
+    provided = _provided_api_key(
+        header_key=request.headers.get("x-api-key"),
+        authorization=request.headers.get("authorization"),
+        query_key=request.query_params.get("api_key"),
+    )
+    if not api_key_matches(provided):
+        raise HTTPException(status_code=401, detail="Missing or invalid API key.")
+
+
+def _ws_provided_key(websocket: WebSocket, start_payload: dict[str, Any] | None = None) -> str:
+    query = websocket.query_params.get("api_key") or websocket.query_params.get("key")
+    body = None
+    if start_payload:
+        body = start_payload.get("api_key") or start_payload.get("key")
+    return _provided_api_key(
+        header_key=websocket.headers.get("x-api-key"),
+        authorization=websocket.headers.get("authorization"),
+        query_key=query,
+        body_key=str(body) if body is not None else None,
+    )
+
+
 # Set True while background model warmup is still running.
 _warming = False
 
@@ -74,6 +133,13 @@ _warming = False
 async def lifespan(app: FastAPI):
     global _warming
     logger.info("VoxShield engine %s starting, profile=%s", ENGINE_VERSION, settings.profile)
+    if configured_api_key():
+        logger.info("Host API key is required (VOXSHIELD_API_KEY). /health stays open.")
+    else:
+        logger.warning(
+            "VOXSHIELD_API_KEY is unset — analyze/stream are open. "
+            "Set it before handing the engine to the Flutter host."
+        )
     if not settings.calibration.get("calibrated"):
         logger.warning(
             "Engine is NOT calibrated. Run 'python calibrate.py' against demo/audio/ "
@@ -192,6 +258,12 @@ async def capabilities() -> dict[str, Any]:
         ],
         "warming": _warming,
         "ready": fraud_ready,
+        "auth": {
+            "api_key_required": bool(configured_api_key()),
+            "header": "X-API-Key",
+            "authorization": "Bearer",
+            "websocket": "query api_key, header X-API-Key, or start.api_key",
+        },
         "recommended_host_actions": {
             "clear": "Continue",
             "review": "Soft warn / secondary check",
@@ -263,6 +335,7 @@ async def analyze(
     high_value: str | None = Form(None),
     call_origin: str | None = Form(None),
     enrollment_features: str | None = Form(None),
+    _: None = Depends(require_host_key),
 ) -> JSONResponse:
     payload = await file.read()
     if not payload:
@@ -306,6 +379,7 @@ async def score_text(
     unknown_number: str | None = Form(None),
     high_value: str | None = Form(None),
     call_origin: str | None = Form(None),
+    _: None = Depends(require_host_key),
 ) -> JSONResponse:
     """Score fraud from transcript/captions alone — no audio required.
 
@@ -439,6 +513,7 @@ async def _run_stream_session(websocket: WebSocket) -> None:
     await websocket.accept()
     session = StreamSession()
     score_task: asyncio.Task[None] | None = None
+    authorized = api_key_matches(_ws_provided_key(websocket))
     logger.info("Stream session opened")
 
     try:
@@ -451,6 +526,12 @@ async def _run_stream_session(websocket: WebSocket) -> None:
             chunk: np.ndarray | None = None
 
             if (payload := message.get("bytes")) is not None:
+                if not authorized:
+                    await websocket.send_json(
+                        {"status": "error", "reason": "Missing or invalid API key."}
+                    )
+                    await websocket.close(code=4401)
+                    break
                 chunk = pcm16_to_float(payload)
             elif (text := message.get("text")) is not None:
                 try:
@@ -459,6 +540,13 @@ async def _run_stream_session(websocket: WebSocket) -> None:
                     continue
                 kind = parsed.get("type")
                 if kind in {"start", "config"}:
+                    if not api_key_matches(_ws_provided_key(websocket, parsed)):
+                        await websocket.send_json(
+                            {"status": "error", "reason": "Missing or invalid API key."}
+                        )
+                        await websocket.close(code=4401)
+                        break
+                    authorized = True
                     session.configure(parsed)
                     await websocket.send_json(
                         {
@@ -474,6 +562,12 @@ async def _run_stream_session(websocket: WebSocket) -> None:
                     )
                     continue
                 if kind == "pcm16":
+                    if not authorized:
+                        await websocket.send_json(
+                            {"status": "error", "reason": "Missing or invalid API key."}
+                        )
+                        await websocket.close(code=4401)
+                        break
                     chunk = pcm16_to_float(base64.b64decode(parsed.get("data", "")))
                 elif kind == "stop":
                     if score_task and not score_task.done():

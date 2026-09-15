@@ -28,7 +28,7 @@ from engine.stage2_fraud import Transcript, assess_fraud
 DATASET_REPO = "karanverma19/Indian_Multilingual_Scam_Message_Dataset"
 
 # Offline sanity checks. These are OUR examples, so they are a smoke test that the
-# wiring works, never a benchmark. Real numbers come from the public dataset.
+# wiring works, never a benchmark. The detector is intent + authenticity, not this list.
 SMOKE_CASES: list[tuple[str, bool]] = [
     ("Beta main hospital mein hoon, jaldi 50 hazaar bhej do, kisi ko mat batana", True),
     ("Sir this is CBI cyber cell, a warrant is issued, share the OTP to cancel it", True),
@@ -36,8 +36,14 @@ SMOKE_CASES: list[tuple[str, bool]] = [
     ("Madam aapke naam par parcel pakda gaya hai, police case hoga, turant 2 lakh transfer karo", True),
     ("Hi, are we still meeting for lunch tomorrow at one?", False),
     ("Please send me the meeting notes when you get a chance", False),
+    ("Please transfer the order to the next shift", False),
+    ("We already completed KYC last week at the branch", False),
+    ("The credit card statement is in your email", False),
+    ("Please send your KYC documents when you can", False),
     ("Your OTP is 456789. Do not share it with anyone.", False),
     ("Ma, I reached the hostel safely, will call you tonight", False),
+    ("Ma, send me the Hotstar OTP, I cannot log in", False),
+    ("Share the bank OTP with me to cancel the warrant", True),
 ]
 
 

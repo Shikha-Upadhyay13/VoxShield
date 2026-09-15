@@ -25,3 +25,5 @@ services:
         value: http://localhost:3000,https://voxshield.vercel.app
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: VOXSHIELD_API_KEY
+        sync: false

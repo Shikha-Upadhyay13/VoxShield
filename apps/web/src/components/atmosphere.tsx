@@ -1,3 +1,5 @@
+import { clsx } from "@/lib/format";
+
 export function Atmosphere() {
   return (
     <>
@@ -31,13 +33,15 @@ export function PageIntro({
   kicker,
   title,
   body,
+  className,
 }: {
   kicker: string;
   title: string;
   body: string;
+  className?: string;
 }) {
   return (
-    <div className="mb-6 max-w-2xl">
+    <div className={clsx("mb-6", className ?? "max-w-2xl")}>
       <div className="kicker">{kicker}</div>
       <h1 className="font-serif mt-2 text-3xl tracking-tight sm:text-4xl">{title}</h1>
       <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{body}</p>

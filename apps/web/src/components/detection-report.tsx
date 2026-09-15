@@ -26,6 +26,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   urgency: "Urgency",
   money: "Money",
   authority: "Authority",
+  context: "Context",
 };
 
 export function VerdictBanner({ verdict, confidence }: { verdict: Verdict; confidence: number }) {
@@ -165,7 +166,7 @@ export function FraudPanel({ result }: { result: EngineOk }) {
           detail={classifier.model ? `${classifier.model} · Indian scam patterns` : "unavailable"}
         />
         <ComponentRow
-          label="Keyword categories"
+          label="Intent categories"
           score={lexicon.score}
           detail={
             lexicon.categories.length > 0

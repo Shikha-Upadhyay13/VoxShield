@@ -47,12 +47,18 @@ export function useLiveCaptions(active: boolean) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const wantRef = useRef(false);
   const restartTimer = useRef<number | null>(null);
+  const liveLineRef = useRef("");
+  const liveLineRaf = useRef<number | null>(null);
 
   const stop = useCallback(() => {
     wantRef.current = false;
     if (restartTimer.current != null) {
       window.clearTimeout(restartTimer.current);
       restartTimer.current = null;
+    }
+    if (liveLineRaf.current != null) {
+      window.cancelAnimationFrame(liveLineRaf.current);
+      liveLineRaf.current = null;
     }
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
@@ -106,7 +112,13 @@ export function useLiveCaptions(active: boolean) {
       if (newlyFinal.length) {
         setFinalLines((prev) => [...prev, ...newlyFinal].slice(-48));
       }
-      setLiveLine(interim);
+      liveLineRef.current = interim;
+      if (liveLineRaf.current == null) {
+        liveLineRaf.current = window.requestAnimationFrame(() => {
+          liveLineRaf.current = null;
+          setLiveLine(liveLineRef.current);
+        });
+      }
     };
 
     recognition.onerror = (event) => {

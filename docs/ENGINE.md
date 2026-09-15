@@ -82,6 +82,12 @@ other rule is evaluated.
 
 Rule 2 is the requirement that makes VoxShield useful to a bank rather than a novelty.
 
+A cloned relative asking for a Hotstar or Prime OTP is **not** `synthetic_benign`.
+The words can be genuine family speech; the attack is the voice. Fusion therefore
+raises fraud to `high` when Stage 1 is synthetic (or the enrolled voiceprint
+mismatches) and the transcript still contains an OTP/PIN ask — even if the named
+service is entertainment. Words alone cannot prove where that OTP will be typed.
+
 ---
 
 ## 3. Stage 1 — synthetic voice detection
@@ -289,12 +295,21 @@ repetition cannot inflate the score.
 
 | Category | Weight | Terms (English + Hindi/Hinglish) |
 |---|---|---|
-| `credentials` | 1.00 | otp, password, pin, cvv, upi pin, aadhaar, kyc, verification code, net banking, paasword, otp batao |
+| `credentials` | 1.00 | Diagnostic: cvv, upi pin, card number, otp batao. Intent: asked to disclose OTP/PIN/password, KYC used as a freeze threat, asked for card/CVV |
 | `coercion` | 0.95 | kill, kidnap, kidnapped, police, arrest, warrant, court case, fir, jail, giraftar, police case, jaan se |
 | `secrecy` | 0.80 | don't tell, do not tell, keep this between us, don't disconnect, stay on the line, kisi ko mat batana, phone mat rakho |
 | `urgency` | 0.70 | right now, immediately, within 10 minutes, last warning, emergency, abhi, jaldi, turant |
-| `money` | 0.65 | money, transfer, send, bhej/bhejo/bhej do, payment, fees, gpay, phonepe, paytm, paisa, paise bhejo |
+| `money` | 0.65 | Diagnostic: send money, upi, gpay, ifsc, pay now. Intent: transfer/send/bhej next to money, UPI, or an amount — not notes/orders/files |
 | `authority` | 0.60 | cbi, income tax, customs, rbi, trai, bank manager, cyber cell, enforcement directorate |
+
+Isolated `otp`, `kyc`, `credit card`, `transfer`, `send`, and `money` **do not** raise a
+category. Genuine speech uses them constantly ("transfer the order", "your OTP is… do
+not share", "KYC is already done"). A category fires only on a diagnostic multi-word
+phrase or an intent frame: solicit a secret, coerce a payment, or threaten a freeze over
+KYC. Bank-style "do not share this OTP" is treated as a warning, not a harvest, unless
+the speaker also says "with me". An OTP asked for Hotstar / Prime / Netflix is an
+**entertainment login**, not a bank secret — unless Stage 1 says the voice is
+synthetic or the enrolled voiceprint mismatches.
 
 Category score = `sum(weights of hit categories) / 2.15`, clamped to 1.0. The denominator
 is chosen so two heavy categories (credentials + coercion ≈ 1.95) or three mid-weight ones
@@ -302,9 +317,9 @@ is chosen so two heavy categories (credentials + coercion ≈ 1.95) or three mid
 instead capped even a four-category hit around 0.73, so the lexicon could never clear the
 high fraud band without the SMS classifier.
 
-**Two or more categories is the meaningful signal.** A single `money` hit is ordinary
-conversation ("send me money for lunch"). `credentials + urgency + coercion` together is a
-scam. The scorer therefore applies a multiplier of 0.55 when only one category hits.
+**Two or more categories is the meaningful signal.** A single `money` hit can still be a
+real lunch request. `credentials + urgency + coercion` together is a scam. The scorer
+therefore applies a multiplier of 0.55 when only one category hits.
 
 ### 4.4 Amount extraction
 
@@ -433,7 +448,7 @@ in [apps/web/src/lib/types.ts](../apps/web/src/lib/types.ts) must match it field
       "amount": { "score": 0.8, "detected_inr": 50000, "raw": "50 hazaar" }
     },
     "matched_terms": [
-      { "category": "credentials", "term": "otp" },
+      { "category": "credentials", "term": "asked them to disclose a secret (OTP, PIN, password, or KYC)" },
       { "category": "coercion", "term": "police" }
     ]
   },
@@ -503,7 +518,7 @@ Recommended **host** actions per verdict (Core does not execute them):
 | `synthetic_benign` | Flag synthetic voice; content not elevated as scam |
 | `critical` | Block / cut / escalate immediately |
 
-Thin TypeScript client: [apps/web/src/sdk](../apps/web/src/sdk) — `analyze`, `scoreText`, `connectStream`, `fetchCapabilities`.
+Thin TypeScript client: [apps/web/src/sdk](../apps/web/src/sdk) — `analyze`, `scoreText`, `connectStream`, `fetchCapabilities`. When `VOXSHIELD_API_KEY` is set, hosts send `X-API-Key` (REST) or `?api_key=` (WebSocket). `GET /health` stays open.
 
 ---
 
@@ -619,8 +634,9 @@ privacy story rather than weakening it: the audio never leaves the device.
 3. **Disfluency is corroborating only.** A human reading a script has none either.
 4. **SilverGuard was trained on SMS, not speech.** Weighted at 0.45 with an independent
    lexicon as a second opinion.
-5. **Whisper errors propagate to Stage 2.** A missed word means a missed keyword. The
-   lexicon is matched on normalized text to reduce this, and Stage 1 is unaffected.
+5. **Whisper errors propagate to Stage 2.** A missed word can drop an intent frame, not
+   just a keyword. The lexicon matches on normalized text and nearby collocations to
+   reduce this, and Stage 1 is unaffected.
 6. **No speaker identity verification yet.** The engine answers "is this synthetic", not
    "is this actually Priya". The web `/enroll` page is a **feature-only stub** — not
    ECAPA-TDNN. Cross-session voiceprint remains PRD roadmap / Phase later.

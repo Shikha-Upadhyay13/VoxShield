@@ -64,6 +64,7 @@ class ClassifierComponent(BaseModel):
 class LexiconComponent(BaseModel):
     score: float | None = None
     categories: list[str] = Field(default_factory=list)
+    intents: list[str] = Field(default_factory=list)
 
 
 class AmountComponent(BaseModel):

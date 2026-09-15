@@ -91,11 +91,6 @@ export function PhoneMock3D({
     cursor.classList.add("is-on");
     document.documentElement.classList.add("phone-cursor-live");
 
-    const overPhone = (event: PointerEvent) => {
-      const hit = document.elementFromPoint(event.clientX, event.clientY);
-      return Boolean(hit && body.contains(hit));
-    };
-
     const applyPhone = () => {
       if (!hovering && !releasing) return;
       body.style.setProperty("--tilt-x", `${curX}deg`);
@@ -196,7 +191,7 @@ export function PhoneMock3D({
     const onMove = (event: PointerEvent) => {
       pointerX = event.clientX;
       pointerY = event.clientY;
-      const over = overPhone(event);
+      const over = body.contains(event.target as Node);
       const onButton = Boolean((event.target as Element | null)?.closest?.("button, a"));
 
       if (over) {

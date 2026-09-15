@@ -179,6 +179,31 @@ def main() -> int:
         )
     )
 
+    intent_cases = (
+        ("Please transfer the order to the next shift", "money", False),
+        ("Please send me the meeting notes when you get a chance", "money", False),
+        ("Your OTP is 456789. Do not share it with anyone.", "credentials", False),
+        ("We already completed KYC last week at the branch", "credentials", False),
+        ("The credit card statement is in your email", "credentials", False),
+        ("Please send your KYC documents when you can", "credentials", False),
+        ("Please send me the account statement", "money", False),
+        ("Share the OTP with me to cancel the warrant", "credentials", True),
+        ("Update KYC immediately or the account will be frozen", "credentials", True),
+        ("Transfer 50 hazaar to this UPI id", "money", True),
+        ("Ma, send me the Hotstar OTP, I cannot log in", "credentials", False),
+        ("Share the bank OTP with me", "credentials", True),
+    )
+    for text, category, expected in intent_cases:
+        hit = score_lexicon(text)
+        present = category in hit.categories
+        results.append(
+            check(
+                f"intent '{category}' {'fires' if expected else 'stays quiet'} on: {text[:42]}",
+                present is expected,
+                f"categories={hit.categories or '-'}",
+            )
+        )
+
     amount = extract_amount(SCAM_SCRIPT)
     results.append(
         check(

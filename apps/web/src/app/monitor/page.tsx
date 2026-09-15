@@ -14,7 +14,7 @@ import { IdentityChip } from "@/components/identity-chip";
 import { InstallBanner } from "@/components/install-banner";
 import { RiskRing } from "@/components/risk-ring";
 import { ScoreTimeline } from "@/components/score-timeline";
-import { SpectrogramBars, Waveform } from "@/components/waveform";
+import { SpectrogramBars, Waveform, InputMeter } from "@/components/waveform";
 import { clsx } from "@/lib/format";
 import { engineToLegacy, isOk, scoreText } from "@/lib/engine-client";
 import { ensureNotificationPermission, isThreatVerdict, notifyThreat } from "@/lib/threat-notify";
@@ -23,7 +23,7 @@ import { useLiveCaptions } from "@/hooks/use-live-captions";
 import { useLiveStream } from "@/hooks/use-live-stream";
 import { usePreferences } from "@/store/preferences-provider";
 import { useSession } from "@/store/session-provider";
-import { VERDICT_COPY, type EngineOk, type EngineResponse, type Verdict } from "@/lib/types";
+import { VERDICT_COPY, type EngineOk, type EngineResponse, type ThresholdPreset, type Verdict } from "@/lib/types";
 
 const FRAUD_MEASURES = [
   "Hang up immediately — do not stay on the line to argue.",
@@ -33,6 +33,21 @@ const FRAUD_MEASURES = [
   "Tell a family member or supervisor; banks: Hold + MFA / escalate.",
 ];
 
+const SECRET_ASK_INTENTS = new Set([
+  "solicit_secret",
+  "entertainment_otp",
+  "card_harvest",
+  "kyc_freeze_threat",
+]);
+
+function intentIds(result: EngineOk | null): string[] {
+  return result?.fraud.components.lexicon.intents ?? [];
+}
+
+function askedForSecret(...results: Array<EngineOk | null>): boolean {
+  return results.some((result) => intentIds(result).some((id) => SECRET_ASK_INTENTS.has(id)));
+}
+
 function mergeTextFraud(
   audio: EngineOk | null,
   textResult: EngineOk,
@@ -41,26 +56,58 @@ function mergeTextFraud(
   if (!audio || audio.authenticity.degraded || audio.authenticity.signals.length === 0) {
     return textResult;
   }
-  const verdict = pickVerdict(audio.authenticity.score, textResult.fraud.score, preset);
-  return {
+  const intents = [...new Set([...intentIds(audio), ...intentIds(textResult)])];
+  const combined: EngineOk = {
     ...audio,
-    fraud: textResult.fraud,
-    verdict,
+    fraud: {
+      ...textResult.fraud,
+      components: {
+        ...textResult.fraud.components,
+        lexicon: { ...textResult.fraud.components.lexicon, intents },
+      },
+    },
     confidence: Math.max(audio.confidence, textResult.confidence),
   };
+  return applyCloneSecretRule(combined, preset);
 }
 
-function pickVerdict(auth: number, fraud: number, preset: ThresholdPreset = "standard"): Verdict {
+function pickVerdict(
+  auth: number,
+  fraud: number,
+  preset: ThresholdPreset = "standard",
+  secretAsk = false,
+  cloneLike = false,
+): Verdict {
   // Match engine fusion uncalibrated authenticity floors + preset fraud cutoffs.
   const authReview = 55;
   const authHigh = 75;
   const fraudReview = preset === "high_value" ? 25 : 35;
   const fraudHigh = preset === "high_value" ? 50 : 65;
+  if (secretAsk && cloneLike) return "critical";
   if (auth >= authHigh && fraud >= fraudHigh) return "critical";
   if (auth < authReview && fraud >= fraudHigh) return "fraud_human";
   if (auth >= authHigh && fraud < fraudReview) return "synthetic_benign";
   if (auth >= authReview || fraud >= fraudReview) return "review";
   return "clear";
+}
+
+function applyCloneSecretRule(result: EngineOk, preset: ThresholdPreset): EngineOk {
+  const asked = askedForSecret(result);
+  const cloneLike =
+    !result.authenticity.degraded &&
+    (result.authenticity.score >= 75 || Boolean(result.identity?.mismatch));
+  let fraud = result.fraud;
+  let fraudScore = result.fraud.score;
+  if (asked && cloneLike) {
+    const floor = preset === "high_value" ? 50 : 65;
+    fraudScore = Math.max(fraudScore, floor);
+    fraud = { ...result.fraud, score: fraudScore, band: "high", label: "Fraud indicators present" };
+  }
+  return {
+    ...result,
+    fraud,
+    verdict: pickVerdict(result.authenticity.score, fraudScore, preset, asked, cloneLike),
+  };
 }
 
 export default function MonitorPage() {
@@ -104,17 +151,27 @@ export default function MonitorPage() {
         setResult((prev) => {
           let merged: EngineOk = next;
           const audioWords = (next.fraud.transcript || "").trim();
+          const thinAudio = audioWords.split(/\s+/).filter(Boolean).length < 4;
           if (
-            prev?.fraud.transcript &&
-            prev.fraud.score > next.fraud.score &&
-            audioWords.split(/\s+/).filter(Boolean).length < 4
+            prev &&
+            thinAudio &&
+            (askedForSecret(prev) ||
+              (Boolean(prev.fraud.transcript) && prev.fraud.score >= next.fraud.score))
           ) {
+            const intents = [...new Set([...intentIds(next), ...intentIds(prev)])];
             merged = {
               ...next,
-              fraud: prev.fraud,
-              verdict: pickVerdict(next.authenticity.score, prev.fraud.score, preset),
+              fraud: {
+                ...prev.fraud,
+                transcript: next.fraud.transcript || prev.fraud.transcript,
+                components: {
+                  ...prev.fraud.components,
+                  lexicon: { ...prev.fraud.components.lexicon, intents },
+                },
+              },
             };
           }
+          merged = applyCloneSecretRule(merged, preset);
           updateLive({
             result: engineToLegacy(merged),
             insufficient: false,
@@ -135,7 +192,7 @@ export default function MonitorPage() {
         source: "live",
       });
     },
-    [updateLive, phase],
+    [updateLive, phase, preset],
   );
 
   useEffect(() => {
@@ -143,7 +200,7 @@ export default function MonitorPage() {
       context,
       preset,
       language: null,
-      onLevel: (inputLevel) => updateLive({ inputLevel }),
+      onLevel: () => undefined,
       onResult: handleResult,
       onNotice: (message) => {
         if (engine.health?.warming) {
@@ -200,7 +257,7 @@ export default function MonitorPage() {
             setNotice("Engine waking up… captions still appear; scoring resumes when ready.");
           }
         });
-    }, 450);
+    }, 1200);
 
     return () => window.clearTimeout(timer);
   }, [
@@ -212,6 +269,8 @@ export default function MonitorPage() {
     phase,
     engine.health?.warming,
     engine.state,
+    context.unknownNumber,
+    context.firstTimeCaller,
   ]);
 
   // Threat notifications + auto-cut on critical (respect Settings).
@@ -264,7 +323,7 @@ export default function MonitorPage() {
         preset,
         language: null,
         enrollment,
-        onLevel: (inputLevel) => updateLive({ inputLevel }),
+        onLevel: () => undefined,
         onResult: handleResult,
         onNotice: setNotice,
         onAnalysing: () => setPhase("analysing"),
@@ -514,10 +573,7 @@ export default function MonitorPage() {
           <div className="mt-4 flex items-center gap-3">
             <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--faint)]">Input</div>
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-              <div
-                className={clsx("h-full rounded-full transition-colors", threat ? "bg-[var(--high)]" : "bg-[var(--accent)]")}
-                style={{ width: `${Math.round(session.inputLevel * 100)}%` }}
-              />
+              <InputMeter analyser={live.analyser} idle={!session.active} threat={Boolean(threat)} />
             </div>
             <EngineBadge
               source={live.usingFallback ? "browser-fallback" : "engine"}

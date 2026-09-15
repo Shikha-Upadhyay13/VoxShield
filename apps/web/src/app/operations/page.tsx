@@ -163,20 +163,22 @@ export default function OperationsPage() {
             Core contract · curl / WS
           </div>
           <pre className="overflow-x-auto font-mono text-[11px] leading-6 text-[var(--muted)]">
-{`# Capabilities + health
+{`# Capabilities + health (no key)
 curl -s http://127.0.0.1:8000/v1/capabilities
 curl -s http://127.0.0.1:8000/health
 
 # Clip analysis (two scores + verdict)
-curl -s -F file=@call.wav -F preset=high_value \\
+curl -s -H "X-API-Key: $VOXSHIELD_API_KEY" \\
+  -F file=@call.wav -F preset=high_value \\
   http://127.0.0.1:8000/analyze
 
 # Live caption fraud (no audio)
-curl -s -F text="send OTP now" -F preset=high_value \\
+curl -s -H "X-API-Key: $VOXSHIELD_API_KEY" \\
+  -F text="send OTP now" -F preset=high_value \\
   http://127.0.0.1:8000/score-text
 
-# Live audio: WS /stream or /ws/call-stream/{id}
-# → PCM16 frames after {"type":"start","sample_rate":48000}`}
+# Live audio: WS /stream?api_key=... or start JSON api_key
+# → PCM16 frames after {"type":"start","sample_rate":16000}`}
           </pre>
           <p className="mt-3 text-xs text-[var(--faint)]">
             Same objects adapters use via the TS SDK. UI buttons above only simulate what a

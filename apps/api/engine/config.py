@@ -84,7 +84,7 @@ STREAM_INTERVAL_BY_PROFILE: dict[str, float] = {
     "dsp_only": 1.0,
 }
 # Run AST/w2v2 on every Nth live score (1 = always). Fast passes skip neural.
-STREAM_AUTH_EVERY_N = 3
+STREAM_AUTH_EVERY_N = 4
 MAX_UPLOAD_S = 60.0
 
 
@@ -98,6 +98,11 @@ def stream_auth_every_n() -> int:
     if raw and raw.strip().isdigit():
         return max(1, int(raw.strip()))
     return STREAM_AUTH_EVERY_N
+
+
+def configured_api_key() -> str:
+    """Host key for REST/WS. Empty means the engine is open (local laptop)."""
+    return os.environ.get("VOXSHIELD_API_KEY", "").strip()
 
 
 def _env_bool(name: str, default: bool = False) -> bool:

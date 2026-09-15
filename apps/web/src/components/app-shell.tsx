@@ -86,11 +86,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pageLabel = FLAT.find((n) => n.href === pathname)?.label ?? "VoxShield";
 
   return (
-    <div className="flex min-h-screen">
-      <div className="grain" />
+    <div className="relative z-10 flex min-h-screen">
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-[var(--line)] bg-[var(--bg-elev)]/95 backdrop-blur-xl transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-[var(--line)] bg-[var(--bg-elev)] transition-transform lg:static lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -186,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : null}
 
       <div className="relative flex min-w-0 flex-1 flex-col bg-[var(--bg)]">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--line)] bg-[var(--bg)]/85 px-4 py-3 backdrop-blur-xl sm:px-6">
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--line)] bg-[var(--bg)] px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -220,7 +219,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <nav className="flex border-b border-[var(--line)] bg-[var(--bg-elev)]/80 px-1 py-1.5 lg:hidden">
+        <nav className="flex border-b border-[var(--line)] bg-[var(--bg-elev)] px-1 py-1.5 lg:hidden">
           {PRIMARY.map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
