@@ -37,8 +37,8 @@
   },
 
   "stage2": {
-    "weights": { "classifier": 0.45, "lexicon": 0.4, "amount": 0.15 },
-    "single_category_multiplier": 0.55,
+    "weights": { "classifier": 0.40, "lexicon": 0.45, "amount": 0.15 },
+    "single_category_multiplier": 0.72,
     "min_words_for_disfluency": 25
   },
 

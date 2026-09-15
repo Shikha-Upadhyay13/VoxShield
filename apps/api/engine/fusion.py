@@ -176,21 +176,31 @@ def analyze(
     want_transcript: bool = False,
     call_context: dict[str, Any] | None = None,
     enrollment_features: dict[str, Any] | None = None,
+    *,
+    stream_pass: str = "full",
 ) -> AnalysisOut | InsufficientOut:
-    """Run both stages and assemble the ENGINE.md Section 7 payload."""
+    """Run both stages and assemble the ENGINE.md Section 7 payload.
+
+    ``stream_pass``:
+      - ``full`` — DSP + neural + Whisper + fraud (uploads and periodic live ticks)
+      - ``fast`` — DSP + Whisper + fraud only; skips AST/w2v2 so live UI stays responsive
+    """
     started = time.perf_counter()
     audio_ms = int(1000 * samples.size / sample_rate) if sample_rate else 0
     context = build_context(call_context)
     enrolled = identity_mod.normalize_enrollment(enrollment_features)
+    pass_kind = (stream_pass or "full").strip().lower()
+    if pass_kind not in {"full", "fast"}:
+        pass_kind = "full"
 
     gate_cfg = dict(settings.gate)
     if streaming:
         # Live laptop windows are short and quieter than file uploads. The default
         # voiced-ratio gate was rejecting real speech and returning insufficient_audio
         # while the UI showed captions of the same words — so fraud never ran.
-        gate_cfg["min_rms"] = min(float(gate_cfg.get("min_rms", 0.008)), 0.004)
-        gate_cfg["min_voiced_ratio"] = min(float(gate_cfg.get("min_voiced_ratio", 0.08)), 0.03)
-        gate_cfg["min_duration_ms"] = min(float(gate_cfg.get("min_duration_ms", 1000)), 800)
+        gate_cfg["min_rms"] = min(float(gate_cfg.get("min_rms", 0.008)), 0.0035)
+        gate_cfg["min_voiced_ratio"] = min(float(gate_cfg.get("min_voiced_ratio", 0.08)), 0.025)
+        gate_cfg["min_duration_ms"] = min(float(gate_cfg.get("min_duration_ms", 1000)), 600)
     gate = check_sufficiency(samples, sample_rate, gate_cfg)
     if not gate.ok:
         return _insufficient(gate.reason, gate.duration_ms, started)
@@ -209,10 +219,23 @@ def analyze(
     identity = identity_mod.compare(enrolled, identity_mod.live_features(track, readings))
 
     # ---- Stage 1: neural pair ------------------------------------------------------
-    neural = stage1_neural.score_audio(samples, sample_rate)
+    if pass_kind == "fast":
+        neural = stage1_neural.NeuralResult(
+            scores={"ast": None, "w2v2": None},
+            fused=None,
+            disagreement=None,
+            notes=["Live fast pass: neural authenticity deferred to keep latency low."],
+        )
+    else:
+        neural = stage1_neural.score_audio(samples, sample_rate)
 
     # ---- Stage 2: transcript then fraud -------------------------------------------
-    transcript = stage2_fraud.transcribe(samples, language=language, streaming=streaming)
+    if pass_kind == "fast":
+        # Captions → /score-text already cover live fraud words. Skipping Whisper here
+        # is what makes the call adapter feel responsive on CPU / Windows.
+        transcript = Transcript("", None, False, "Fast pass defers Whisper to the full tick.")
+    else:
+        transcript = stage2_fraud.transcribe(samples, language=language, streaming=streaming)
     fraud_assessment = stage2_fraud.assess_fraud(transcript)
 
     # Disfluency depends on the transcript, so it joins Stage 1 after Stage 2 runs.
@@ -228,6 +251,14 @@ def analyze(
     stage1_weights = settings.stage1.get(
         "weights", {"neural": 0.55, "dsp": 0.30, "disfluency": 0.15}
     )
+    # Fast live ticks have no neural — lean on DSP so ordinary speech does not float
+    # in an empty mid-band waiting for the next full pass.
+    if pass_kind == "fast":
+        stage1_weights = {
+            "neural": 0.0,
+            "dsp": 0.75,
+            "disfluency": 0.25,
+        }
     components: list[tuple[float, float]] = []
     available = 0
     if neural.fused is not None:
@@ -260,6 +291,10 @@ def analyze(
     if not settings.calibration.get("calibrated", False):
         auth_thresholds["review"] = max(int(auth_thresholds["review"]), 55)
         auth_thresholds["high"] = max(int(auth_thresholds["high"]), 75)
+        # Fast DSP-only ticks are noisier — require clearer synthetic signal for "high".
+        if pass_kind == "fast":
+            auth_thresholds["review"] = max(int(auth_thresholds["review"]), 60)
+            auth_thresholds["high"] = max(int(auth_thresholds["high"]), 80)
     authenticity_band = band_for(authenticity_score, auth_thresholds)
     fraud_band = band_for(fraud_score, fraud_thresholds)
     verdict = decide_verdict(authenticity_score, fraud_score, auth_thresholds, fraud_thresholds)

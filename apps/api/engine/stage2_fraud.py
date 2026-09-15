@@ -183,12 +183,14 @@ class _Transcriber:
                 samples.astype(np.float32),
                 language=language,
                 beam_size=1 if streaming else 5,
+                best_of=1 if streaming else 5,
                 # Live laptop mics are quieter and choppier than file uploads. Silero VAD
                 # was deleting entire 1–3 s windows (see stream logs: "removed 00:01.536 of
                 # 00:01.536"), which left Stage 2 with silence and the UI looking broken.
                 # Keep VAD for offline uploads; skip it on the live path.
                 vad_filter=not streaming,
                 condition_on_previous_text=False,
+                without_timestamps=True,
             )
             text = " ".join(segment.text.strip() for segment in segments).strip()
             detected = getattr(info, "language", None)
@@ -425,7 +427,15 @@ def assess_fraud(
     amount = extract_amount(text)
 
     amount_inr = amount.amount_inr or 0.0
-    lexicon_suspicious = len(lexicon.categories) >= 2 or amount_inr >= 10_000
+    strong_category = bool(
+        set(lexicon.categories) & {"credentials", "coercion", "secrecy"}
+    )
+    lexicon_suspicious = (
+        len(lexicon.categories) >= 2
+        or amount_inr >= 10_000
+        or lexicon.score >= 0.42
+        or strong_category
+    )
     if sender_header is None:
         # Only add the synthetic caller ID when the words already look like a scam.
         # Blindly prefixing every transcript made SilverGuard flag "please send the

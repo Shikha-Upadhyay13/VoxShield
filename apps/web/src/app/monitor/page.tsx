@@ -33,11 +33,15 @@ const FRAUD_MEASURES = [
   "Tell a family member or supervisor; banks: Hold + MFA / escalate.",
 ];
 
-function mergeTextFraud(audio: EngineOk | null, textResult: EngineOk): EngineOk {
+function mergeTextFraud(
+  audio: EngineOk | null,
+  textResult: EngineOk,
+  preset: ThresholdPreset = "standard",
+): EngineOk {
   if (!audio || audio.authenticity.degraded || audio.authenticity.signals.length === 0) {
     return textResult;
   }
-  const verdict = pickVerdict(audio.authenticity.score, textResult.fraud.score);
+  const verdict = pickVerdict(audio.authenticity.score, textResult.fraud.score, preset);
   return {
     ...audio,
     fraud: textResult.fraud,
@@ -46,11 +50,16 @@ function mergeTextFraud(audio: EngineOk | null, textResult: EngineOk): EngineOk 
   };
 }
 
-function pickVerdict(auth: number, fraud: number): Verdict {
-  if (auth >= 70 && fraud >= 65) return "critical";
-  if (auth < 40 && fraud >= 65) return "fraud_human";
-  if (auth >= 70 && fraud < 35) return "synthetic_benign";
-  if (auth >= 40 || fraud >= 35) return "review";
+function pickVerdict(auth: number, fraud: number, preset: ThresholdPreset = "standard"): Verdict {
+  // Match engine fusion uncalibrated authenticity floors + preset fraud cutoffs.
+  const authReview = 55;
+  const authHigh = 75;
+  const fraudReview = preset === "high_value" ? 25 : 35;
+  const fraudHigh = preset === "high_value" ? 50 : 65;
+  if (auth >= authHigh && fraud >= fraudHigh) return "critical";
+  if (auth < authReview && fraud >= fraudHigh) return "fraud_human";
+  if (auth >= authHigh && fraud < fraudReview) return "synthetic_benign";
+  if (auth >= authReview || fraud >= fraudReview) return "review";
   return "clear";
 }
 
@@ -103,7 +112,7 @@ export default function MonitorPage() {
             merged = {
               ...next,
               fraud: prev.fraud,
-              verdict: pickVerdict(next.authenticity.score, prev.fraud.score),
+              verdict: pickVerdict(next.authenticity.score, prev.fraud.score, preset),
             };
           }
           updateLive({
@@ -175,7 +184,7 @@ export default function MonitorPage() {
         .then((scored) => {
           if (controller.signal.aborted) return;
           setResult((prev) => {
-            const merged = mergeTextFraud(prev, scored);
+            const merged = mergeTextFraud(prev, scored, preset);
             updateLive({
               result: engineToLegacy(merged),
               insufficient: false,
@@ -321,7 +330,7 @@ export default function MonitorPage() {
         },
       });
       setResult((prev) => {
-        const merged = mergeTextFraud(prev, scored);
+        const merged = mergeTextFraud(prev, scored, preset);
         updateLive({
           result: engineToLegacy(merged),
           insufficient: false,

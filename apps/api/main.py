@@ -32,7 +32,14 @@ from engine.audio_io import (
     pcm16_to_float,
     resample_to,
 )
-from engine.config import SAMPLE_RATE, STREAM_WINDOW_S, settings, stream_interval_s
+from engine.config import (
+    SAMPLE_RATE,
+    STREAM_AUTH_WINDOW_S,
+    STREAM_FAST_WINDOW_S,
+    settings,
+    stream_auth_every_n,
+    stream_interval_s,
+)
 from engine.schemas import HealthOut
 
 logging.basicConfig(
@@ -324,6 +331,9 @@ class StreamSession:
 
     Analysis runs in a worker thread and is skipped while one is already in flight, so
     a slow CPU degrades the update rate rather than building an unbounded backlog.
+
+    Most ticks use a fast pass (DSP + Whisper + fraud). Every Nth tick runs a full pass
+    that also refreshes neural authenticity.
     """
 
     def __init__(self) -> None:
@@ -336,6 +346,8 @@ class StreamSession:
         self.total_samples = 0
         self.samples_since_score = 0
         self.busy = False
+        self.score_index = 0
+        self.cached_authenticity: dict[str, Any] | None = None
 
     def configure(self, message: dict[str, Any]) -> None:
         rate = message.get("sample_rate")
@@ -363,10 +375,22 @@ class StreamSession:
         self.buffer = np.concatenate([self.buffer, chunk])
         self.total_samples += chunk.size
         self.samples_since_score += chunk.size
-        # Only the trailing window is ever scored; drop older audio so memory is bounded.
-        keep = int(STREAM_WINDOW_S * self.sample_rate * 1.5)
+        # Keep enough audio for the longer authenticity window.
+        keep = int(STREAM_AUTH_WINDOW_S * self.sample_rate * 1.5)
         if self.buffer.size > keep:
             self.buffer = self.buffer[-keep:]
+
+    def next_pass(self, final: bool = False) -> str:
+        if final:
+            return "full"
+        self.score_index += 1
+        every = stream_auth_every_n()
+        return "full" if self.score_index % every == 0 else "fast"
+
+    def window_seconds(self, stream_pass: str) -> float:
+        if stream_pass == "full":
+            return STREAM_AUTH_WINDOW_S
+        return STREAM_FAST_WINDOW_S
 
     @property
     def should_score(self) -> bool:
@@ -379,20 +403,20 @@ class StreamSession:
     def elapsed_ms(self) -> int:
         return int(1000 * self.total_samples / self.sample_rate) if self.sample_rate else 0
 
-    def window(self) -> tuple[np.ndarray, np.ndarray]:
-        native = last_seconds(self.buffer, self.sample_rate, STREAM_WINDOW_S)
+    def window(self, seconds: float) -> tuple[np.ndarray, np.ndarray]:
+        native = last_seconds(self.buffer, self.sample_rate, seconds)
         model_audio = resample_to(native, self.sample_rate, SAMPLE_RATE)
         return model_audio, native
 
-    def has_speech_energy(self) -> bool:
+    def has_speech_energy(self, seconds: float = STREAM_FAST_WINDOW_S) -> bool:
         """Skip scoring when the trailing window is effectively silence."""
         if self.buffer.size == 0 or not self.sample_rate:
             return False
-        native = last_seconds(self.buffer, self.sample_rate, STREAM_WINDOW_S)
+        native = last_seconds(self.buffer, self.sample_rate, seconds)
         if native.size == 0:
             return False
         rms = float(np.sqrt(np.mean(np.square(native))))
-        return rms >= 0.004
+        return rms >= 0.0035
 
 
 @app.websocket("/stream")
@@ -443,8 +467,8 @@ async def _run_stream_session(websocket: WebSocket) -> None:
                             "preset": session.preset,
                             "engine_version": ENGINE_VERSION,
                             "note": (
-                                "First score on CPU usually takes 10–20 seconds because "
-                                "transcription and both detectors run on the trailing window."
+                                "Live path scores fraud quickly on short windows; "
+                                "neural authenticity refreshes every few ticks."
                             ),
                         }
                     )
@@ -495,6 +519,8 @@ async def _score_and_send(
         return
     session.busy = True
     session.samples_since_score = 0
+    stream_pass = session.next_pass(final=final)
+    window_s = session.window_seconds(stream_pass)
     try:
         with contextlib.suppress(Exception):
             await websocket.send_json(
@@ -504,9 +530,10 @@ async def _score_and_send(
                     "audio_ms": int(1000 * session.buffer.size / session.sample_rate)
                     if session.sample_rate
                     else 0,
+                    "pass": stream_pass,
                 }
             )
-        model_audio, native = session.window()
+        model_audio, native = session.window(window_s)
         result = await asyncio.to_thread(
             fusion.analyze,
             model_audio,
@@ -516,12 +543,34 @@ async def _score_and_send(
             native,
             session.sample_rate,
             not final,
-            int(STREAM_WINDOW_S * 1000),
+            int(window_s * 1000),
             session.elapsed_ms,
             True,  # always return the transcript for the live UI
             session.call_context,
             session.enrollment_features,
+            stream_pass=stream_pass,
         )
+        if result.status == "ok" and stream_pass == "full":
+            session.cached_authenticity = result.authenticity.model_dump()
+        elif (
+            result.status == "ok"
+            and stream_pass == "fast"
+            and session.cached_authenticity is not None
+        ):
+            # Keep fraud fresh from this tick; reuse last neural authenticity so the
+            # UI does not flicker between DSP-only and full scores.
+            from engine.schemas import Authenticity
+
+            cached = Authenticity.model_validate(session.cached_authenticity)
+            result.authenticity = cached
+            auth_th = dict(settings.thresholds(session.preset, "authenticity"))
+            fraud_th = settings.thresholds(session.preset, "fraud")
+            if not settings.calibration.get("calibrated", False):
+                auth_th["review"] = max(int(auth_th["review"]), 55)
+                auth_th["high"] = max(int(auth_th["high"]), 75)
+            result.verdict = fusion.decide_verdict(
+                cached.score, result.fraud.score, auth_th, fraud_th
+            )
         # Client may have hung up while CPU scored — never throw on a dead socket.
         try:
             await websocket.send_json(result.model_dump())
@@ -529,7 +578,7 @@ async def _score_and_send(
             logger.info("Stream result not sent (client gone): %s", send_exc or type(send_exc).__name__)
             return
         if result.status == "ok":
-            logger.info("Stream score %s", fusion.summarize(result))
+            logger.info("Stream score (%s) %s", stream_pass, fusion.summarize(result))
         else:
             logger.info("Stream gate: %s", result.reason)
     except asyncio.CancelledError:

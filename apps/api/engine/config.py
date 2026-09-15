@@ -71,21 +71,33 @@ PROFILES: dict[str, dict[str, Any]] = {
 }
 
 SAMPLE_RATE = 16000
-STREAM_WINDOW_S = 4.0
-STREAM_INTERVAL_S = 2.0
-# Longer interval on lean profiles so CPU is not saturated mid-call.
+# Live path: short window for responsive fraud/DSP; longer for neural authenticity.
+STREAM_WINDOW_S = 3.0
+STREAM_FAST_WINDOW_S = 2.5
+STREAM_AUTH_WINDOW_S = 5.0
+STREAM_INTERVAL_S = 1.0
+# Lean profiles still score often enough that speech feels live on CPU.
 STREAM_INTERVAL_BY_PROFILE: dict[str, float] = {
-    "full": 2.0,
-    "lite": 2.5,
-    "mobile": 3.0,
-    "dsp_only": 2.0,
+    "full": 1.0,
+    "lite": 1.2,
+    "mobile": 1.5,
+    "dsp_only": 1.0,
 }
+# Run AST/w2v2 on every Nth live score (1 = always). Fast passes skip neural.
+STREAM_AUTH_EVERY_N = 3
 MAX_UPLOAD_S = 60.0
 
 
 def stream_interval_s(profile: str | None = None) -> float:
     key = (profile or settings.profile).strip().lower()
     return float(STREAM_INTERVAL_BY_PROFILE.get(key, STREAM_INTERVAL_S))
+
+
+def stream_auth_every_n() -> int:
+    raw = os.environ.get("VOXSHIELD_STREAM_AUTH_EVERY_N")
+    if raw and raw.strip().isdigit():
+        return max(1, int(raw.strip()))
+    return STREAM_AUTH_EVERY_N
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -188,8 +200,10 @@ DEFAULT_CALIBRATION: dict[str, Any] = {
         },
     },
     "stage2": {
-        "weights": {"classifier": 0.45, "lexicon": 0.40, "amount": 0.15},
-        "single_category_multiplier": 0.55,
+        "weights": {"classifier": 0.40, "lexicon": 0.45, "amount": 0.15},
+        # Speech transcripts hit fewer exact phrases than SMS — do not crush a single
+        # strong category (OTP / digital arrest) into the mid-band.
+        "single_category_multiplier": 0.72,
         "min_words_for_disfluency": 25,
     },
     "models": {

@@ -37,7 +37,9 @@ interface Graph {
 const LOCAL_WINDOW_S = 1.8;
 const LOCAL_INTERVAL_MS = 1200;
 /** Soft boost so quiet laptop mics clear the engine's energy gate. */
-const INPUT_GAIN = 2.4;
+const INPUT_GAIN = 2.6;
+/** Match engine SAMPLE_RATE — cuts WS bandwidth and server resample work. */
+const STREAM_RATE = 16000;
 
 /**
  * Live microphone capture that streams to the Python engine.
@@ -115,7 +117,7 @@ export function useLiveStream() {
 
       const socket = new EngineStream(
         {
-          sampleRate: ctx.sampleRate,
+          sampleRate: STREAM_RATE,
           preset: options.preset,
           language: options.language ?? null,
           context: {
@@ -186,7 +188,8 @@ export function useLiveStream() {
         if (!active) return;
 
         if (active.socket?.isOpen) {
-          active.socket.send(boosted);
+          const { samples } = downsample(boosted, active.ctx.sampleRate, STREAM_RATE);
+          if (samples.length > 0) active.socket.send(samples);
           return;
         }
 
